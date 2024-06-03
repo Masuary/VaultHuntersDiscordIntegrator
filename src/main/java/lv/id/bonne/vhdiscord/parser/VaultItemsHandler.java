@@ -134,11 +134,11 @@ public class VaultItemsHandler
                 VaultItemsHandler.handleRelicFragmentTooltip(builder, itemStack, relic);
                 return builder.toString();
             }
-            else if (itemStack.getItem() instanceof VaultCatalystInfusedItem)
-            {
-                VaultItemsHandler.handleCatalystTooltip(builder, itemStack);
-                return builder.toString();
-            }
+//            else if (itemStack.getItem() instanceof VaultCatalystInfusedItem)
+//            {
+//                VaultItemsHandler.handleCatalystTooltip(builder, itemStack);
+//                return builder.toString();
+//            }
             else if (itemStack.getItem() instanceof AugmentItem)
             {
                 VaultItemsHandler.handleAugmentTooltip(builder, itemStack);
@@ -530,7 +530,7 @@ public class VaultItemsHandler
      */
     public static void handleVaultCrystalTooltip(StringBuilder builder, CrystalData crystalData)
     {
-        builder.append("**Level:** ").append(crystalData.getLevel()).append("\n");
+        builder.append("**Level:** ").append(crystalData.getProperties()).append("\n");
 
         // Objective
         builder.append("**Objective:** ").
@@ -556,19 +556,19 @@ public class VaultItemsHandler
             builder.append("\n");
         }
 
-        // Instability
-        float instability = crystalData.getInstability();
-
-        if (instability > 0.0F)
-        {
-            builder.append("**Instability:** ").
-                append(Math.round(crystalData.getInstability() * 100.0F)).
-                append("%").
-                append("\n");
-        }
+//        // Instability
+//        float instability = crystalData.getInstability();
+//
+//        if (instability > 0.0F)
+//        {
+//            builder.append("**Instability:** ").
+//                append(Math.round(crystalData.getInstability() * 100.0F)).
+//                append("%").
+//                append("\n");
+//        }
 
         // Unmodifiable
-        if (crystalData.isUnmodifiable())
+        if (crystalData.getProperties().isUnmodifiable())
         {
             builder.append("**Unmodifiable**").append("\n");
         }
@@ -646,28 +646,28 @@ public class VaultItemsHandler
     }
 
 
-    /**
-     * This method parses Vault Catalyst item tooltip into discord chat.
-     * @param builder Embed Builder.
-     * @param itemStack Vault Catalyst Item Stack.
-     */
-    public static void handleCatalystTooltip(StringBuilder builder, ItemStack itemStack)
-    {
-        List<ResourceLocation> modifierIdList = VaultCatalystInfusedItem.getModifiers(itemStack);
-
-        if (!modifierIdList.isEmpty())
-        {
-            builder.append("\n");
-            builder.append(new TranslatableComponent(modifierIdList.size() <= 1 ?
-                "tooltip.the_vault.vault_catalyst.modifier.singular" :
-                "tooltip.the_vault.vault_catalyst.modifier.plural").getString());
-            builder.append("\n");
-
-            modifierIdList.forEach(modifierId ->
-                VaultModifierRegistry.getOpt(modifierId).ifPresent(vaultModifier ->
-                    builder.append(vaultModifier.getDisplayName()).append("\n")));
-        }
-    }
+//    /**
+//     * This method parses Vault Catalyst item tooltip into discord chat.
+//     * @param builder Embed Builder.
+//     * @param itemStack Vault Catalyst Item Stack.
+//     */
+//    public static void handleCatalystTooltip(StringBuilder builder, ItemStack itemStack)
+//    {
+//        List<ResourceLocation> modifierIdList = CatalystInhibitorItem.getModifiers(itemStack);
+//
+//        if (!modifierIdList.isEmpty())
+//        {
+//            builder.append("\n");
+//            builder.append(new TranslatableComponent(modifierIdList.size() <= 1 ?
+//                "tooltip.the_vault.vault_catalyst.modifier.singular" :
+//                "tooltip.the_vault.vault_catalyst.modifier.plural").getString());
+//            builder.append("\n");
+//
+//            modifierIdList.forEach(modifierId ->
+//                VaultModifierRegistry.getOpt(modifierId).ifPresent(vaultModifier ->
+//                    builder.append(vaultModifier.getDisplayName()).append("\n")));
+//        }
+//    }
 
 
     /**
@@ -766,7 +766,7 @@ public class VaultItemsHandler
             }).
             ifPresent(text ->
             {
-                MutableComponent tierDisplay = VaultGearTierConfig.getConfig(stack.getItem()).map((tierConfig) ->
+                MutableComponent tierDisplay = VaultGearTierConfig.getConfig(stack).map((tierConfig) ->
                 {
                     Object config = tierConfig.getTierConfig(modifier);
 
