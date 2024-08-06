@@ -20,7 +20,6 @@ import iskallia.vault.config.gear.VaultGearTierConfig;
 import iskallia.vault.core.data.key.ThemeKey;
 import iskallia.vault.core.vault.VaultRegistry;
 import iskallia.vault.core.vault.modifier.VaultModifierStack;
-import iskallia.vault.core.vault.modifier.registry.VaultModifierRegistry;
 import iskallia.vault.core.vault.modifier.spi.VaultModifier;
 import iskallia.vault.core.world.generator.layout.ArchitectRoomEntry;
 import iskallia.vault.core.world.generator.layout.DIYRoomEntry;
@@ -755,7 +754,7 @@ public class VaultItemsHandler
     {
         Optional.ofNullable(modifier.getAttribute().getReader().getDisplay(modifier, data, type, stack)).
             map(text -> {
-                if (modifier.getCategory() != VaultGearModifier.AffixCategory.LEGENDARY)
+                if (!modifier.hasCategory(VaultGearModifier.AffixCategory.LEGENDARY))
                 {
                     return text.getString();
                 }
@@ -786,7 +785,7 @@ public class VaultItemsHandler
 
                 if (tierDisplay != null)
                 {
-                    String legendaryInfo = modifier.getCategory() == VaultGearModifier.AffixCategory.LEGENDARY ? "**Legendary** " : "";
+                    String legendaryInfo = modifier.hasCategory(VaultGearModifier.AffixCategory.LEGENDARY) ? "**Legendary** " : "";
 
                     if (tierDisplay.getString().isEmpty())
                     {
