@@ -1,6 +1,6 @@
 //
 // Created by BONNe
-// Copyright - 2023
+// Copyright - 2025
 //
 
 
@@ -10,11 +10,9 @@ package lv.id.bonne.vhdiscord.sdlink.mixin;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Redirect;
-
-
 import java.util.UUID;
 
-import iskallia.vault.util.MiscUtils;
+import iskallia.vault.core.vault.player.ClassicListenersLogic;
 import me.hypherionmc.sdlink.server.ServerEvents;
 import me.hypherionmc.sdlinklib.config.ConfigController;
 import me.hypherionmc.sdlinklib.discord.DiscordMessage;
@@ -25,19 +23,38 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.server.players.PlayerList;
 
 
-/**
- * This catches message from MiscUtils.broadcast method and resends it to the discord server.
- */
-@Mixin(MiscUtils.class)
-public class MixinMiscUtils
+@Mixin(value = ClassicListenersLogic.class)
+public class MixinClassicListenersLogic
 {
-    @Redirect(method = "broadcast",
+    @Redirect(method = "lambda$initServer$1",
         at = @At(value = "INVOKE",
             target = "Lnet/minecraft/server/players/PlayerList;broadcastMessage(Lnet/minecraft/network/chat/Component;Lnet/minecraft/network/chat/ChatType;Ljava/util/UUID;)V"))
-    private static void broadcastMessageToDiscord(PlayerList instance,
-        Component component,
-        ChatType p_11265_,
-        UUID p_11266_)
+    private void onVaultExit(PlayerList instance, Component component, ChatType p_11265_, UUID p_11266_)
+    {
+        instance.broadcastMessage(component, p_11265_, p_11266_);
+
+        if (ServerEvents.getInstance().getBotEngine() == null)
+        {
+            // Bot engine is not setup. Do nothing.
+            return;
+        }
+
+        if (!ConfigController.modConfig.generalConfig.enabled)
+        {
+            // Config is disabled. Do nothing.
+            return;
+        }
+
+        DiscordMessage discordMessage = new DiscordMessage.Builder(ServerEvents.getInstance().getBotEngine(), MessageType.JOIN_LEAVE).
+            withMessage(component.getString()).
+            withAuthor(MessageAuthor.SERVER).
+            build();
+        discordMessage.sendMessage();
+    }
+    
+
+    @Redirect(method = "printJoinMessage", at = @At(value = "INVOKE", target = "Lnet/minecraft/server/players/PlayerList;broadcastMessage(Lnet/minecraft/network/chat/Component;Lnet/minecraft/network/chat/ChatType;Ljava/util/UUID;)V"))
+    private void onVaultJoin(PlayerList instance, Component component, ChatType p_11265_, UUID p_11266_)
     {
         instance.broadcastMessage(component, p_11265_, p_11266_);
 
