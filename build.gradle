@@ -140,7 +140,7 @@ dependencies {
     annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
 
     // Curseforge mod dependencies
-    implementation fg.deobf("curse.maven:vault-hunters-official-mod-458203:${vault_hunters_version}")
+    implementation fg.deobf("curse.maven:vault-hunters-official-mod-458203:6644290")
     implementation fg.deobf("curse.maven:dcintegration-324952:${dcintegration}")
     implementation fg.deobf("curse.maven:mc2discord-325235:${mc2discord}")
     implementation fg.deobf("curse.maven:simple-discord-link-bot-forge-fabric-spigot-541320:${sdlink}")

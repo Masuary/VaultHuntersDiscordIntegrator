@@ -7,12 +7,12 @@
 package lv.id.bonne.vhdiscord.vaulthunters.mixin;
 
 
+import iskallia.vault.core.card.modifier.card.GearCardModifier;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.gen.Accessor;
 
 import java.util.Map;
 
-import iskallia.vault.core.card.GearCardModifier;
 
 
 @Mixin(value = GearCardModifier.class, remap = false)

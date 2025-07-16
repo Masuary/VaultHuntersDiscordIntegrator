@@ -21,6 +21,7 @@ import iskallia.vault.config.TrinketConfig;
 import iskallia.vault.config.gear.VaultGearTagConfig;
 import iskallia.vault.config.gear.VaultGearTierConfig;
 import iskallia.vault.core.card.*;
+import iskallia.vault.core.card.modifier.card.GearCardModifier;
 import iskallia.vault.core.data.key.ThemeKey;
 import iskallia.vault.core.vault.VaultRegistry;
 import iskallia.vault.core.vault.influence.VaultGod;
@@ -132,11 +133,6 @@ public class VaultItemsHandler
             else if (itemStack.getItem() instanceof EtchingItem)
             {
                 VaultItemsHandler.handleEtchingTooltip(builder, itemStack);
-                return builder.toString();
-            }
-            else if (itemStack.getItem() instanceof VaultRuneItem)
-            {
-                VaultItemsHandler.handleRuneTooltip(builder, itemStack);
                 return builder.toString();
             }
             else if (itemStack.getItem() instanceof InscriptionItem)
@@ -553,27 +549,6 @@ public class VaultItemsHandler
                 }
             });
         }
-    }
-
-
-    /**
-     * This method parses VaultRune item tooltip into discord chat.
-     * @param builder Embed Builder.
-     * @param itemStack Vault Rune Item Stack.
-     */
-    public static void handleRuneTooltip(StringBuilder builder, ItemStack itemStack)
-    {
-        VaultRuneItem.getEntries(itemStack).forEach(diyRoomEntry -> {
-            int count = diyRoomEntry.get(DIYRoomEntry.COUNT);
-
-            builder.append("- Has ").
-                append(count).
-                append(" ").
-                append(diyRoomEntry.getName().getString()).
-                append(" ").
-                append(count > 1 ? "Rooms" : "Room");
-            builder.append("\n");
-        });
     }
 
 
