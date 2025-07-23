@@ -15,7 +15,6 @@ import java.util.function.Predicate;
 import iskallia.vault.antique.Antique;
 import iskallia.vault.client.gui.helper.UIHelper;
 import iskallia.vault.config.AntiquesConfig;
-import iskallia.vault.config.EtchingConfig;
 import iskallia.vault.config.PlayerTitlesConfig;
 import iskallia.vault.config.TrinketConfig;
 import iskallia.vault.config.gear.VaultGearTagConfig;
@@ -128,11 +127,6 @@ public class VaultItemsHandler
             else if (itemStack.getItem() instanceof VaultDollItem)
             {
                 VaultItemsHandler.handleDollTooltip(builder, itemTag);
-                return builder.toString();
-            }
-            else if (itemStack.getItem() instanceof EtchingItem)
-            {
-                VaultItemsHandler.handleEtchingTooltip(builder, itemStack);
                 return builder.toString();
             }
             else if (itemStack.getItem() instanceof InscriptionItem)
@@ -253,16 +247,6 @@ public class VaultItemsHandler
 
         if (state == VaultGearState.IDENTIFIED)
         {
-            // Add Etchings
-            data.getFirstValue(ModGearAttributes.ETCHING).
-                ifPresent(etchingSet -> {
-                    EtchingConfig.Etching etchingConfig = ModConfigs.ETCHING.getEtchingConfig(etchingSet);
-                    if (etchingConfig != null)
-                    {
-                        builder.append("**Etching:** ").append(etchingConfig.getName()).append("\n");
-                    }
-                });
-
             // Add Slot name
             if (itemStack.getItem() instanceof VaultGearItem gearItem)
             {
@@ -527,29 +511,6 @@ public class VaultItemsHandler
      * @param builder Embed Builder.
      * @param itemStack Vault Etching Item Stack.
      */
-    public static void handleEtchingTooltip(StringBuilder builder, ItemStack itemStack)
-    {
-        AttributeGearData data = AttributeGearData.read(itemStack);
-
-        if (data.getFirstValue(ModGearAttributes.STATE).orElse(VaultGearState.UNIDENTIFIED) == VaultGearState.IDENTIFIED)
-        {
-            data.getFirstValue(ModGearAttributes.ETCHING).ifPresent((etchingSet) ->
-            {
-                EtchingConfig.Etching config = ModConfigs.ETCHING.getEtchingConfig(etchingSet);
-
-                if (config != null)
-                {
-                    builder.append("**Etching:** ").append(config.getName());
-
-                    for (TextComponent cmp : MiscUtils.splitDescriptionText(config.getEffectText()))
-                    {
-                        builder.append("\n");
-                        builder.append(cmp.getString());
-                    }
-                }
-            });
-        }
-    }
 
 
     /**
