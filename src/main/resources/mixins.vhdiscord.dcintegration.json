@@ -8,10 +8,10 @@
     "MixinForgeMessageUtils",
     "MixinMiscUtils",
     "MixinAchievementCompleteTask",
-    "MixinClassicListenersLogic",
     "MixinOpenVaultSnapshotCommand",
     "MixinSkillAltarContainerDefault",
     "MixinVaultCrystalItem",
-    "MixinVaultGodSayCommand"
+    "MixinVaultGodSayCommand",
+    "MixinPlayerList"
   ]
 }
