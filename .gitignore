@@ -26,3 +26,6 @@ forge*changelog.txt
 
 # Add gradle folder to gitIgnore.
 /gradle/
+
+# Local dependencies
+libs/*.jar
