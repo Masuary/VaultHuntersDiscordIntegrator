@@ -21,7 +21,6 @@ import iskallia.vault.config.gear.VaultGearTagConfig;
 import iskallia.vault.config.gear.VaultGearTierConfig;
 import iskallia.vault.core.card.*;
 import iskallia.vault.core.card.modifier.card.GearCardModifier;
-import iskallia.vault.core.card.modifier.deck.DeckModifier;
 import iskallia.vault.core.data.key.ThemeKey;
 import iskallia.vault.core.vault.VaultRegistry;
 import iskallia.vault.core.vault.influence.VaultGod;
@@ -1072,28 +1071,11 @@ public class VaultItemsHandler
                 builder.append("\n");
             }
 
-            List<DeckModifier<?>> modifiers = deck.getModifiers();
+            int modifierCount = deck.getModifiers().size();
 
-            if (!modifiers.isEmpty())
+            if (modifierCount > 0)
             {
-                builder.append("**Modifiers:**\n");
-
-                for (DeckModifier<?> modifier : modifiers)
-                {
-                    List<Component> tooltipLines = new ArrayList<>();
-                    modifier.addText(tooltipLines, 0, TooltipFlag.Default.NORMAL, 0f);
-
-                    for (Component line : tooltipLines)
-                    {
-                        String text = line.getString();
-
-                        if (!text.isEmpty())
-                        {
-                            builder.append(" ").append(DOT).append(" ").
-                                append(text).append("\n");
-                        }
-                    }
-                }
+                builder.append("**Modifiers:** ").append(modifierCount).append("\n");
             }
         });
     }
