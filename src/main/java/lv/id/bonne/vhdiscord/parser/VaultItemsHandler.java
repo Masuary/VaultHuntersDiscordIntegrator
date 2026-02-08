@@ -1024,14 +1024,15 @@ public class VaultItemsHandler
         CardDeckItem.getCardDeck(itemStack).ifPresent(deck ->
         {
             Map<CardPos, Card> cards = deck.getCards();
-            long filledSlots = cards.values().stream().filter(Objects::nonNull).count();
+            long filledSlots = cards.values().stream().
+                filter(card -> card != null && !card.getEntries().isEmpty()).count();
 
             if (filledSlots > 0)
             {
                 builder.append("**Cards:** (").append(filledSlots).append("/").append(cards.size()).append(")\n");
 
                 cards.entrySet().stream().
-                    filter(entry -> entry.getValue() != null).
+                    filter(entry -> entry.getValue() != null && !entry.getValue().getEntries().isEmpty()).
                     sorted(Comparator.comparing(
                         entry -> Optional.ofNullable(entry.getValue().getFirstName()).
                             map(Component::getString).orElse(""),
