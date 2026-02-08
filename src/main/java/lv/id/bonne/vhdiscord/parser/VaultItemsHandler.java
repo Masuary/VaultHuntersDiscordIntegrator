@@ -21,6 +21,7 @@ import iskallia.vault.config.gear.VaultGearTagConfig;
 import iskallia.vault.config.gear.VaultGearTierConfig;
 import iskallia.vault.core.card.*;
 import iskallia.vault.core.card.modifier.card.GearCardModifier;
+import iskallia.vault.core.card.modifier.deck.DeckModifier;
 import iskallia.vault.core.data.key.ThemeKey;
 import iskallia.vault.core.vault.VaultRegistry;
 import iskallia.vault.core.vault.influence.VaultGod;
@@ -106,6 +107,7 @@ public class VaultItemsHandler
      * @param itemTag Item Compound Tag
      * @return String with a tooltip
      */
+    @SuppressWarnings("deprecation")
     public static String generateVaultHuntersItemTooltips(JsonObject itemJson,
         ItemStack itemStack,
         CompoundTag itemTag)
@@ -192,6 +194,11 @@ public class VaultItemsHandler
             else if (itemStack.getItem() instanceof CardItem)
             {
                 VaultItemsHandler.handleCardTooltip(builder, itemStack);
+                return builder.toString();
+            }
+            else if (itemStack.getItem() instanceof CardDeckItem)
+            {
+                VaultItemsHandler.handleCardDeckTooltip(builder, itemStack);
                 return builder.toString();
             }
             else if (itemStack.getItem() instanceof ModifierScrollItem)
@@ -757,6 +764,7 @@ public class VaultItemsHandler
 
 
 
+    @SuppressWarnings("deprecation")
     public static void handleCharmTooltip(StringBuilder builder, ItemStack itemStack)
     {
         int totalUses = CharmItem.getUses(itemStack);
@@ -1010,11 +1018,93 @@ public class VaultItemsHandler
     }
 
 
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    public static void handleCardDeckTooltip(StringBuilder builder, ItemStack itemStack)
+    {
+        CardDeckItem.getCardDeck(itemStack).ifPresent(deck ->
+        {
+            Map<CardPos, Card> cards = deck.getCards();
+            long filledSlots = cards.values().stream().filter(Objects::nonNull).count();
+
+            if (filledSlots > 0)
+            {
+                builder.append("**Cards:** (").append(filledSlots).append("/").append(cards.size()).append(")\n");
+
+                cards.entrySet().stream().
+                    filter(entry -> entry.getValue() != null).
+                    sorted(Comparator.comparing(
+                        entry -> Optional.ofNullable(entry.getValue().getFirstName()).
+                            map(Component::getString).orElse(""),
+                        String.CASE_INSENSITIVE_ORDER)).
+                    forEachOrdered(entry ->
+                    {
+                        Card card = entry.getValue();
+                        String cardName = Optional.ofNullable(card.getFirstName()).
+                            map(Component::getString).orElse("Unknown");
+
+                        builder.append(" ").append(DOT).append(" ").
+                            append(cardName).
+                            append(" (T").append(card.getTier()).append(")").
+                            append("\n");
+                    });
+
+                builder.append("\n");
+            }
+
+            List<VaultGearAttributeInstance<?>> attributes = deck.getSnapshotAttributes();
+
+            if (!attributes.isEmpty())
+            {
+                builder.append("**Attributes:**\n");
+
+                for (VaultGearAttributeInstance instance : attributes)
+                {
+                    MutableComponent text = instance.getAttribute().getReader().
+                        getDisplay(instance, VaultGearModifier.AffixType.PREFIX);
+
+                    if (text != null)
+                    {
+                        builder.append(" ").append(DOT).append(" ").
+                            append(text.getString()).append("\n");
+                    }
+                }
+
+                builder.append("\n");
+            }
+
+            List<DeckModifier<?>> modifiers = deck.getModifiers();
+
+            if (!modifiers.isEmpty())
+            {
+                builder.append("**Modifiers:**\n");
+
+                for (DeckModifier<?> modifier : modifiers)
+                {
+                    List<Component> tooltipLines = new ArrayList<>();
+                    modifier.addText(tooltipLines, 0, TooltipFlag.Default.NORMAL, 0f);
+
+                    for (Component line : tooltipLines)
+                    {
+                        String text = line.getString();
+
+                        if (!text.isEmpty())
+                        {
+                            builder.append(" ").append(DOT).append(" ").
+                                append(text).append("\n");
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+
 // ---------------------------------------------------------------------
 // Section: Private processing methods
 // ---------------------------------------------------------------------
 
 
+    @SuppressWarnings({"rawtypes", "unchecked"})
     private static void addCardProperty(StringBuilder builder, CardProperty<?> property, int tier)
     {
         if (property instanceof GearCardModifier<?> modifier)
@@ -1149,7 +1239,7 @@ public class VaultItemsHandler
      * @param type Affix Type.
      * @param stack ItemStack of item.
      */
-    @SuppressWarnings("rawtypes unchecked")
+    @SuppressWarnings({"rawtypes", "unchecked"})
     private static void addAffix(StringBuilder builder,
         VaultGearModifier modifier,
         VaultGearData data,
@@ -1404,6 +1494,7 @@ public class VaultItemsHandler
      * @param theme class.
      * @return Name of the theme.
      */
+    @SuppressWarnings("deprecation")
     private static String parseThemeName(CrystalTheme theme)
     {
         if (theme instanceof PoolCrystalTheme)
