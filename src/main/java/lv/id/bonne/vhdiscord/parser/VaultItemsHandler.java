@@ -21,6 +21,7 @@ import iskallia.vault.config.gear.VaultGearTagConfig;
 import iskallia.vault.config.gear.VaultGearTierConfig;
 import iskallia.vault.core.card.*;
 import iskallia.vault.core.card.modifier.card.GearCardModifier;
+import iskallia.vault.core.card.modifier.deck.DeckModifier;
 import iskallia.vault.core.data.key.ThemeKey;
 import iskallia.vault.core.vault.VaultRegistry;
 import iskallia.vault.core.vault.influence.VaultGod;
@@ -1071,11 +1072,31 @@ public class VaultItemsHandler
                 builder.append("\n");
             }
 
-            int modifierCount = deck.getModifiers().size();
+            int socketCount = deck.getSocketCount();
 
-            if (modifierCount > 0)
+            if (socketCount > 0)
             {
-                builder.append("**Modifiers:** ").append(modifierCount).append("\n");
+                int filledSockets = deck.getModifiers().size();
+                int emptySockets = socketCount - filledSockets;
+
+                builder.append("**Sockets:** ").
+                    append(createDots(filledSockets, "\u2B22")).
+                    append(createDots(emptySockets, "\u2B21")).
+                    append("\n");
+
+                if (filledSockets > 0)
+                {
+                    builder.append("**Modifiers:**\n");
+
+                    for (DeckModifier<?> modifier : deck.getModifiers())
+                    {
+                        String name = modifier.getName();
+
+                        builder.append(" ").append(DOT).append(" ").
+                            append(name != null ? name : "Unknown").
+                            append("\n");
+                    }
+                }
             }
         });
     }
