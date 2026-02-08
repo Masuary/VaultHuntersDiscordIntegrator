@@ -68,7 +68,7 @@ side = "SERVER"
 [[dependencies.${mod_id}]]
 modId = "mc2discord"
 mandatory = false
-versionRange = "[4.0.0,)"
+versionRange = "*"
 ordering = "AFTER"
 side = "SERVER"
 [[dependencies.${mod_id}]]
