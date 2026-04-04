@@ -71,6 +71,13 @@ import iskallia.vault.item.crystal.time.PoolCrystalTime;
 import iskallia.vault.item.crystal.time.ValueCrystalTime;
 import iskallia.vault.item.data.InscriptionData;
 import iskallia.vault.item.gear.CharmItem;
+import iskallia.vault.config.gear.VaultEtchingConfig;
+import iskallia.vault.core.vault.modifier.registry.VaultModifierRegistry;
+import iskallia.vault.gear.etching.EtchingHelper;
+import iskallia.vault.item.CoinPouchItem;
+import iskallia.vault.item.InfusedCatalystItem;
+import iskallia.vault.item.ItemShardPouch;
+import iskallia.vault.item.VaultCatalystItem;
 import iskallia.vault.item.gear.EtchingItem;
 import iskallia.vault.item.gear.TrinketItem;
 import iskallia.vault.item.modification.GearModificationItem;
@@ -119,6 +126,11 @@ public class VaultItemsHandler
             if (itemStack.getItem() instanceof BottleItem)
             {
                 VaultItemsHandler.handleBottleTooltip(builder, itemStack);
+                return builder.toString();
+            }
+            else if (itemStack.getItem() instanceof EtchingItem)
+            {
+                VaultItemsHandler.handleEtchingTooltip(builder, itemStack);
                 return builder.toString();
             }
             else if (itemStack.getItem() instanceof VaultGearTooltipItem)
@@ -191,6 +203,16 @@ public class VaultItemsHandler
                 VaultItemsHandler.handleJewelPouchTooltip(builder, itemStack);
                 return builder.toString();
             }
+            else if (itemStack.getItem() instanceof CoinPouchItem)
+            {
+                VaultItemsHandler.handleCoinPouchTooltip(builder, itemStack);
+                return builder.toString();
+            }
+            else if (itemStack.getItem() instanceof ItemShardPouch)
+            {
+                VaultItemsHandler.handleShardPouchTooltip(builder, itemStack);
+                return builder.toString();
+            }
             else if (itemStack.getItem() instanceof CardItem)
             {
                 VaultItemsHandler.handleCardTooltip(builder, itemStack);
@@ -204,6 +226,16 @@ public class VaultItemsHandler
             else if (itemStack.getItem() instanceof ModifierScrollItem)
             {
                 VaultItemsHandler.handleModifierScrollTooltip(builder, itemStack);
+                return builder.toString();
+            }
+            else if (itemStack.getItem() instanceof InfusedCatalystItem)
+            {
+                VaultItemsHandler.handleInfusedCatalystTooltip(builder, itemStack);
+                return builder.toString();
+            }
+            else if (itemStack.getItem() instanceof VaultCatalystItem)
+            {
+                VaultItemsHandler.handleBaseCatalystTooltip(builder, itemStack);
                 return builder.toString();
             }
         }
@@ -307,6 +339,19 @@ public class VaultItemsHandler
                     }
                 });
 
+            // Add Etching info if present
+            data.getFirstValue(ModGearAttributes.ETCHING).ifPresent(etchingId -> {
+                VaultEtchingConfig.EtchingEntry etchingEntry = ModConfigs.ETCHINGS.getEtchingConfig(etchingId);
+                if (etchingEntry != null)
+                {
+                    String etchingDesc = EtchingHelper.formatDescription(
+                        etchingEntry.getDescription(), EtchingHelper.getEtching(itemStack));
+                    etchingDesc = etchingDesc.replaceAll("<[^>]+>", "");
+                    builder.append("**Etching:** ").append(etchingEntry.getName()).append("\n");
+                    builder.append(etchingDesc).append("\n");
+                }
+            });
+
             // Add Implicits
             List<VaultGearModifier<?>> implicits = data.getModifiers(VaultGearModifier.AffixType.IMPLICIT);
 
@@ -337,6 +382,26 @@ public class VaultItemsHandler
         if (!data.isModifiable())
         {
             builder.append("\n").append("**Corrupted**").append(" (Unmodifiable Item)");
+        }
+
+        boolean isImbued = false;
+
+        for (VaultGearModifier.AffixType affixType : VaultGearModifier.AffixType.values())
+        {
+            for (VaultGearModifier<?> modifier : data.getModifiers(affixType))
+            {
+                if (modifier.hasCategory(VaultGearModifier.AffixCategory.IMBUED))
+                {
+                    isImbued = true;
+                    break;
+                }
+            }
+            if (isImbued) break;
+        }
+
+        if (isImbued)
+        {
+            builder.append("\n").append("**Imbued**");
         }
     }
 
@@ -518,6 +583,44 @@ public class VaultItemsHandler
      * @param builder Embed Builder.
      * @param itemStack Vault Etching Item Stack.
      */
+    public static void handleEtchingTooltip(StringBuilder builder, ItemStack itemStack)
+    {
+        VaultGearData data = VaultGearData.read(itemStack);
+
+        if (data.getState() != VaultGearState.IDENTIFIED)
+        {
+            builder.append("Unidentified Etching\n");
+            return;
+        }
+
+        builder.append("**Greed Tier:** ").append(data.getItemLevel()).append("\n");
+
+        ResourceLocation etchingId = data.getAttributes(ModGearAttributes.ETCHING)
+            .findFirst()
+            .map(VaultGearAttributeInstance::getValue)
+            .orElse(null);
+
+        if (etchingId == null)
+        {
+            builder.append("No Etching Applied\n");
+            return;
+        }
+
+        VaultEtchingConfig.EtchingEntry entry = ModConfigs.ETCHINGS.getEtchingConfig(etchingId);
+
+        if (entry == null)
+        {
+            builder.append("Unknown Etching\n");
+            return;
+        }
+
+        String description = EtchingHelper.formatDescription(
+            entry.getDescription(), EtchingHelper.getEtching(itemStack));
+        description = description.replaceAll("<[^>]+>", "");
+        builder.append(description).append("\n\n");
+
+        builder.append("**Type:** ").append(String.join(", ", entry.getTypeGroups())).append("\n");
+    }
 
 
     /**
@@ -717,23 +820,46 @@ public class VaultItemsHandler
 //     * @param builder Embed Builder.
 //     * @param itemStack Vault Catalyst Item Stack.
 //     */
-//    public static void handleCatalystTooltip(StringBuilder builder, ItemStack itemStack)
-//    {
-//        List<ResourceLocation> modifierIdList = CatalystInhibitorItem.getModifiers(itemStack);
-//
-//        if (!modifierIdList.isEmpty())
-//        {
-//            builder.append("\n");
-//            builder.append(new TranslatableComponent(modifierIdList.size() <= 1 ?
-//                "tooltip.the_vault.vault_catalyst.modifier.singular" :
-//                "tooltip.the_vault.vault_catalyst.modifier.plural").getString());
-//            builder.append("\n");
-//
-//            modifierIdList.forEach(modifierId ->
-//                VaultModifierRegistry.getOpt(modifierId).ifPresent(vaultModifier ->
-//                    builder.append(vaultModifier.getDisplayName()).append("\n")));
-//        }
-//    }
+    /**
+     * This method parses Infused Catalyst item tooltip into discord chat.
+     * @param builder Embed Builder.
+     * @param itemStack Vault Infused Catalyst Item Stack.
+     */
+    public static void handleInfusedCatalystTooltip(StringBuilder builder, ItemStack itemStack)
+    {
+        if (InfusedCatalystItem.isSuper(itemStack))
+        {
+            builder.append("Used to modify your Personal Vault\n");
+        }
+
+        if (!InfusedCatalystItem.isSuper(itemStack))
+        {
+            InfusedCatalystItem.getSize(itemStack).ifPresent(size ->
+                builder.append("**Size:** ").append(size).append("\n"));
+        }
+
+        List<ResourceLocation> modifiers = InfusedCatalystItem.getModifiers(itemStack);
+
+        if (!modifiers.isEmpty())
+        {
+            for (ResourceLocation modifierId : modifiers)
+            {
+                VaultModifierRegistry.getOpt(modifierId).ifPresent(vaultModifier ->
+                    builder.append(" - ").append(vaultModifier.getDisplayName()).append("\n"));
+            }
+        }
+    }
+
+
+    /**
+     * This method parses base Catalyst item tooltip into discord chat.
+     * @param builder Embed Builder.
+     * @param itemStack Vault Catalyst Item Stack.
+     */
+    public static void handleBaseCatalystTooltip(StringBuilder builder, ItemStack itemStack)
+    {
+        builder.append("Use in a Crystal Workbench to modify/upgrade a Vault Crystal\n");
+    }
 
 
     /**
@@ -928,6 +1054,46 @@ public class VaultItemsHandler
     {
         String levelDescription = JewelPouchItem.getStoredLevel(itemStack).map(String::valueOf).orElse("???");
         builder.append("**Level:** ").append(levelDescription).append("\n");
+    }
+
+
+    public static void handleCoinPouchTooltip(StringBuilder builder, ItemStack itemStack)
+    {
+        ItemStack[] stacks = CoinPouchItem.getContainedStacks(itemStack);
+        String[] names = {"Bronze", "Silver", "Gold", "Platinum", "Greed Coins"};
+
+        boolean hasAny = false;
+        for (int i = stacks.length - 1; i >= 0; i--)
+        {
+            int count = stacks[i].getCount();
+            if (count > 0)
+            {
+                builder.append("**").append(names[i]).append(":** ")
+                    .append(String.format("%,d", count)).append("\n");
+                hasAny = true;
+            }
+        }
+
+        if (!hasAny)
+        {
+            builder.append("Empty\n");
+        }
+    }
+
+
+    public static void handleShardPouchTooltip(StringBuilder builder, ItemStack itemStack)
+    {
+        ItemStack shardStack = ItemShardPouch.getContainedStack(itemStack);
+        int count = shardStack.isEmpty() ? 0 : shardStack.getCount();
+
+        if (count > 0)
+        {
+            builder.append("**Soul Shards:** ").append(String.format("%,d", count)).append("\n");
+        }
+        else
+        {
+            builder.append("Empty\n");
+        }
     }
 
 
@@ -1260,14 +1426,38 @@ public class VaultItemsHandler
     {
         Optional.ofNullable(modifier.getAttribute().getReader().getDisplay(modifier, data, type, stack)).
             map(text -> {
-                if (!modifier.hasCategory(VaultGearModifier.AffixCategory.LEGENDARY))
+                String prefix = "";
+
+                String suffix = "";
+
+                if (modifier.hasCategory(VaultGearModifier.AffixCategory.LEGENDARY))
                 {
-                    return text.getString();
+                    prefix = LEGENDARY_SYMBOL + " ";
                 }
-                else
+
+                if (modifier.hasCategory(VaultGearModifier.AffixCategory.GREATER))
                 {
-                    return VaultItemsHandler.STAR + " " + text.getString();
+                    prefix = GREATER_SYMBOL + " ";
                 }
+
+                if (modifier.hasCategory(VaultGearModifier.AffixCategory.IMBUED))
+                {
+                    prefix = IMBUED_SYMBOL + " ";
+                }
+
+                if (modifier.hasCategory(VaultGearModifier.AffixCategory.CORRUPTED))
+                {
+                    prefix = CORRUPTED_OPEN + " ";
+                    suffix = " " + CORRUPTED_CLOSE;
+                }
+
+                if (modifier.hasCategory(VaultGearModifier.AffixCategory.FROZEN))
+                {
+                    prefix = FROZEN_OPEN + " ";
+                    suffix = " " + FROZEN_CLOSE;
+                }
+
+                return prefix + text.getString() + suffix;
             }).
             ifPresent(text ->
             {
@@ -1791,19 +1981,22 @@ public class VaultItemsHandler
      */
     private static final String FULL_CIRCLE = "\u25CF";
 
-    /**
-     * symbol for text fields.
-     */
-    private static final String STAR = "\u2726";
-
-    /**
-     * symbol for text fields.
-     */
     private static final String SQUARE = "\u25A0";
 
-    /**
-     * Symbol for text fields.
-     */
+    private static final String LEGENDARY_SYMBOL = "\u2726";
+
+    private static final String GREATER_SYMBOL = "\u29EB";
+
+    private static final String IMBUED_SYMBOL = "\u2724";
+
+    private static final String CORRUPTED_OPEN = "\u3010";
+
+    private static final String CORRUPTED_CLOSE = "\u3011";
+
+    private static final String FROZEN_OPEN = "\u276E";
+
+    private static final String FROZEN_CLOSE = "\u276F";
+
     private static final String CURSE = "\u2620";
 
     /**
