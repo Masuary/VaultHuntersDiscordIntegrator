@@ -11,7 +11,6 @@
     "MixinOpenVaultSnapshotCommand",
     "MixinSkillAltarContainerDefault",
     "MixinVaultCrystalItem",
-    "MixinVaultGodSayCommand",
     "MixinPlayerList"
   ]
 }

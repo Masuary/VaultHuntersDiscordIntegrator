@@ -862,21 +862,29 @@ public class VaultItemsHandler
             () -> builder.append("Player: ???").append("\n"));
 
 
-        PlayerTitlesData.Entry entry = new PlayerTitlesData.Entry();
         PlayerTitlesConfig.Affix affix = TitleScrollItem.getAffix(itemStack).orElse(PlayerTitlesConfig.Affix.PREFIX);
+        String tabText = TitleScrollItem.getTabText(itemStack).orElse(null);
+        String chatText = TitleScrollItem.getChatText(itemStack).orElse(null);
+        String color = TitleScrollItem.getColor(itemStack).orElse(null);
 
-        if (affix == PlayerTitlesConfig.Affix.PREFIX)
+        if (tabText != null || chatText != null)
         {
-            entry.setPrefix(TitleScrollItem.getTitleId(itemStack).orElse( null));
-        }
-        else if (affix == PlayerTitlesConfig.Affix.SUFFIX)
-        {
-            entry.setSuffix(TitleScrollItem.getTitleId(itemStack).orElse( null));
-        }
+            PlayerTitlesData.TitleDisplay titleDisplay = new PlayerTitlesData.TitleDisplay(tabText, chatText, color);
+            PlayerTitlesData.Entry entry = new PlayerTitlesData.Entry();
 
-        entry.getCustomName(new TextComponent("<Player>"), PlayerTitlesData.Type.TAB_LIST).
-            ifPresent(display ->
-                builder.append("**Preview:** ").append(display.getString()).append("\n"));
+            if (affix == PlayerTitlesConfig.Affix.PREFIX)
+            {
+                entry.setPrefix(titleDisplay);
+            }
+            else if (affix == PlayerTitlesConfig.Affix.SUFFIX)
+            {
+                entry.setSuffix(titleDisplay);
+            }
+
+            entry.getCustomName(new TextComponent("<Player>"), PlayerTitlesData.Type.TAB_LIST).
+                ifPresent(display ->
+                    builder.append("**Preview:** ").append(display.getString()).append("\n"));
+        }
     }
 
 
