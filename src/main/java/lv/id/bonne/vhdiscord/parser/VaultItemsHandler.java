@@ -82,6 +82,10 @@ import iskallia.vault.item.gear.EtchingItem;
 import iskallia.vault.item.gear.TrinketItem;
 import iskallia.vault.item.modification.GearModificationItem;
 import iskallia.vault.item.modification.ReforgeTagModificationFocus;
+import iskallia.vault.item.CompanionRelicItem;
+import iskallia.vault.item.DeckSocketItem;
+import iskallia.vault.item.SigilItem;
+import iskallia.vault.item.tool.JewelItem;
 import iskallia.vault.item.tool.PaxelItem;
 import iskallia.vault.util.MiscUtils;
 import iskallia.vault.world.data.PlayerTitlesData;
@@ -238,6 +242,26 @@ public class VaultItemsHandler
                 VaultItemsHandler.handleBaseCatalystTooltip(builder, itemStack);
                 return builder.toString();
             }
+            else if (itemStack.getItem() instanceof CompanionRelicItem)
+            {
+                VaultItemsHandler.handleCompanionRelicTooltip(builder, itemStack);
+                return builder.toString();
+            }
+            else if (itemStack.getItem() instanceof JewelItem)
+            {
+                VaultItemsHandler.handleJewelTooltip(builder, itemStack);
+                return builder.toString();
+            }
+            else if (itemStack.getItem() instanceof SigilItem)
+            {
+                VaultItemsHandler.handleSigilTooltip(builder, itemStack);
+                return builder.toString();
+            }
+            else if (itemStack.getItem() instanceof DeckSocketItem)
+            {
+                VaultItemsHandler.handleDeckSocketTooltip(builder, itemStack);
+                return builder.toString();
+            }
         }
         catch (Exception e)
         {
@@ -379,27 +403,17 @@ public class VaultItemsHandler
             }
         }
 
-        if (!data.isModifiable())
+        if (data.isCorrupted())
         {
             builder.append("\n").append("**Corrupted**").append(" (Unmodifiable Item)");
         }
 
-        boolean isImbued = false;
-
-        for (VaultGearModifier.AffixType affixType : VaultGearModifier.AffixType.values())
+        if (data.isSealed())
         {
-            for (VaultGearModifier<?> modifier : data.getModifiers(affixType))
-            {
-                if (modifier.hasCategory(VaultGearModifier.AffixCategory.IMBUED))
-                {
-                    isImbued = true;
-                    break;
-                }
-            }
-            if (isImbued) break;
+            builder.append("\n").append("**Sealed**");
         }
 
-        if (isImbued)
+        if (data.isImbued())
         {
             builder.append("\n").append("**Imbued**");
         }
@@ -659,7 +673,6 @@ public class VaultItemsHandler
 
         builder.append("**Size:** ").
             append(compoundTag.getInt("size")).
-            append("%").
             append("\n");
 
         for (InscriptionData.Entry entry : data.getEntries())
@@ -671,8 +684,7 @@ public class VaultItemsHandler
                 append(" ").
                 append(entry.count).
                 append(" ").
-                append(entry.toRoomEntry().has(ArchitectRoomEntry.TYPE) ?
-                    entry.toRoomEntry().get(ArchitectRoomEntry.TYPE).getName() : "Unknown").
+                append(entry.toRoomEntry().getName().getString()).
                 append(" ").
                 append(roomStr).
                 append("\n");
@@ -859,6 +871,71 @@ public class VaultItemsHandler
     public static void handleBaseCatalystTooltip(StringBuilder builder, ItemStack itemStack)
     {
         builder.append("Use in a Crystal Workbench to modify/upgrade a Vault Crystal\n");
+    }
+
+
+    public static void handleCompanionRelicTooltip(StringBuilder builder, ItemStack itemStack)
+    {
+        builder.append("Use in a Companion Home to add a modifier to your companion.\n");
+
+        List<ResourceLocation> modifiers = CompanionRelicItem.getModifiers(itemStack);
+
+        if (!modifiers.isEmpty())
+        {
+            for (ResourceLocation modifierId : modifiers)
+            {
+                VaultModifierRegistry.getOpt(modifierId).ifPresent(vaultModifier ->
+                    builder.append(" ").append(DOT).append(" ").append(vaultModifier.getDisplayName()).append("\n"));
+            }
+        }
+    }
+
+
+    public static void handleJewelTooltip(StringBuilder builder, ItemStack itemStack)
+    {
+        VaultGearData data = VaultGearData.read(itemStack);
+        VaultGearState state = data.getState();
+
+        builder.append("**Level:** ").append(data.getItemLevel()).append("\n");
+
+        if (state == VaultGearState.IDENTIFIED)
+        {
+            data.getFirstValue(ModGearAttributes.JEWEL_SIZE).ifPresent(size ->
+                builder.append(size).append(" Size\n"));
+
+            for (VaultGearModifier.AffixType affixType : VaultGearModifier.AffixType.values())
+            {
+                for (VaultGearModifier<?> modifier : data.getModifiers(affixType))
+                {
+                    VaultItemsHandler.addAffix(builder, modifier, data, affixType, itemStack);
+                }
+            }
+        }
+    }
+
+
+    public static void handleSigilTooltip(StringBuilder builder, ItemStack itemStack)
+    {
+        SigilItem.readSigil(itemStack).ifPresent(sigil ->
+        {
+            builder.append("**Sigil:** ").append(sigil.getDisplayName()).append("\n");
+            builder.append("+").append(PERCENT_FORMAT.format(sigil.getDifficulty())).append(" Difficulty\n");
+        });
+    }
+
+
+    public static void handleDeckSocketTooltip(StringBuilder builder, ItemStack itemStack)
+    {
+        DeckSocketItem.getDeckModifier(itemStack).ifPresent(modifier ->
+        {
+            List<Component> tooltipLines = new ArrayList<>();
+            modifier.addText(tooltipLines, 0, TooltipFlag.Default.NORMAL, 0f);
+
+            for (Component line : tooltipLines)
+            {
+                builder.append(line.getString()).append("\n");
+            }
+        });
     }
 
 
@@ -2008,4 +2085,6 @@ public class VaultItemsHandler
      * Variable format for numbers.
      */
     private static final DecimalFormat FORMAT = new DecimalFormat("0.##");
+
+    private static final DecimalFormat PERCENT_FORMAT = new DecimalFormat("#.##%");
 }
