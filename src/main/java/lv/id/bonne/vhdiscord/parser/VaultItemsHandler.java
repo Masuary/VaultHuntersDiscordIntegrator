@@ -928,13 +928,8 @@ public class VaultItemsHandler
     {
         DeckSocketItem.getDeckModifier(itemStack).ifPresent(modifier ->
         {
-            List<Component> tooltipLines = new ArrayList<>();
-            modifier.addText(tooltipLines, 0, TooltipFlag.Default.NORMAL, 0f);
-
-            for (Component line : tooltipLines)
-            {
-                builder.append(line.getString()).append("\n");
-            }
+            String name = modifier.getName();
+            builder.append(name != null ? name : "Unknown").append("\n");
         });
     }
 
