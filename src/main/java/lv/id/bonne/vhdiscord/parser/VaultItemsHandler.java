@@ -19,6 +19,7 @@ import iskallia.vault.config.PlayerTitlesConfig;
 import iskallia.vault.config.TrinketConfig;
 import iskallia.vault.config.gear.VaultGearTagConfig;
 import iskallia.vault.config.gear.VaultGearTierConfig;
+import iskallia.vault.config.sigil.SigilConfig;
 import iskallia.vault.core.card.*;
 import iskallia.vault.core.card.modifier.card.GearCardModifier;
 import iskallia.vault.core.card.modifier.deck.*;
@@ -920,6 +921,18 @@ public class VaultItemsHandler
         {
             builder.append("**Sigil:** ").append(sigil.getDisplayName()).append("\n");
             builder.append("+").append(PERCENT_FORMAT.format(sigil.getDifficulty())).append(" Difficulty\n");
+
+            SigilConfig sigilConfig = ModConfigs.SIGIL.get(sigil.getId());
+
+            if (sigilConfig != null)
+            {
+                int crateTiers = sigilConfig.getLevel(Integer.MAX_VALUE).getExtraCrateTiers();
+
+                if (crateTiers > 0)
+                {
+                    builder.append("+").append(crateTiers).append(" Crate Tiers\n");
+                }
+            }
         });
     }
 
