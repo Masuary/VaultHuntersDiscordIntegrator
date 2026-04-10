@@ -161,18 +161,15 @@ public class MixinEvents
 
             // Here we hook into Vault Hunters items.
 
-            if (itemJson.get("id").getAsString().startsWith("the_vault"))
+            String description = VaultItemsHandler.generateVaultHuntersItemTooltips(itemJson, itemStack, itemTag);
+
+            if (description != null && !description.isBlank())
             {
-                String description = VaultItemsHandler.generateVaultHuntersItemTooltips(itemJson, itemStack, itemTag);
+                MixinEvents.vaultHuntersDiscordIntegrator$craftVaultHuntersItemMessage(player,
+                    itemStack,
+                    description);
 
-                if (description != null && !description.isBlank())
-                {
-                    MixinEvents.vaultHuntersDiscordIntegrator$craftVaultHuntersItemMessage(player,
-                        itemStack,
-                        description);
-
-                    return true;
-                }
+                return true;
             }
         }
         catch (CommandSyntaxException ignored)

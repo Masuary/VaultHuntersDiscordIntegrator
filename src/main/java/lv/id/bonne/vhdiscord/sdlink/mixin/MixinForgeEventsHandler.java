@@ -141,17 +141,14 @@ public class MixinForgeEventsHandler
 
             // Here we hook into Vault Hunters items.
 
-            if (itemJson.get("id").getAsString().startsWith("the_vault"))
-            {
-                String description = VaultItemsHandler.generateVaultHuntersItemTooltips(itemJson,
-                    itemStack,
-                    itemTag);
+            String description = VaultItemsHandler.generateVaultHuntersItemTooltips(itemJson,
+                itemStack,
+                itemTag);
 
-                if (description != null && !description.isBlank())
-                {
-                    MixinForgeEventsHandler.craftVaultHuntersItemMessage(player, itemStack, description);
-                    return true;
-                }
+            if (description != null && !description.isBlank())
+            {
+                MixinForgeEventsHandler.craftVaultHuntersItemMessage(player, itemStack, description);
+                return true;
             }
         }
         catch (CommandSyntaxException ignored)

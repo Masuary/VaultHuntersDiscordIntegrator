@@ -263,28 +263,26 @@ public class VaultItemsHandler
                 VaultItemsHandler.handleDeckSocketTooltip(builder, itemStack);
                 return builder.toString();
             }
-            else if ("the_vault:greedy_meal".equals(
-                Objects.toString(ForgeRegistries.ITEMS.getKey(itemStack.getItem()), "")))
+            else
             {
-                VaultItemsHandler.handleGreedyMealTooltip(builder, itemStack);
-                return builder.toString();
-            }
-            else if ("the_vault:herald_trophy".equals(
-                Objects.toString(ForgeRegistries.ITEMS.getKey(itemStack.getItem()), "")))
-            {
-                VaultItemsHandler.handleHeraldTrophyTooltip(builder, itemStack);
-                return builder.toString();
-            }
-            else if ("the_vault:companion".equals(
-                Objects.toString(ForgeRegistries.ITEMS.getKey(itemStack.getItem()), "")))
-            {
-                VaultItemsHandler.handleCompanionTooltip(builder, itemStack);
-                return builder.toString();
-            }
-            else if ("create:attribute_filter".equals(
-                Objects.toString(ForgeRegistries.ITEMS.getKey(itemStack.getItem()), "")))
-            {
-                VaultItemsHandler.handleAttributeFilterTooltip(builder, itemStack);
+                String itemId = itemJson.has("id") ? itemJson.get("id").getAsString() : "";
+
+                switch (itemId)
+                {
+                    case "the_vault:greedy_meal" ->
+                        VaultItemsHandler.handleGreedyMealTooltip(builder, itemStack);
+                    case "the_vault:herald_trophy" ->
+                        VaultItemsHandler.handleHeraldTrophyTooltip(builder, itemStack);
+                    case "the_vault:companion" ->
+                        VaultItemsHandler.handleCompanionTooltip(builder, itemStack);
+                    case "create:attribute_filter" ->
+                        VaultItemsHandler.handleAttributeFilterTooltip(builder, itemStack);
+                    default ->
+                    {
+                        return null;
+                    }
+                }
+
                 return builder.toString();
             }
         }
@@ -295,8 +293,6 @@ public class VaultItemsHandler
             // If I fail, then return nothing.
             return null;
         }
-
-        return null;
     }
 
 

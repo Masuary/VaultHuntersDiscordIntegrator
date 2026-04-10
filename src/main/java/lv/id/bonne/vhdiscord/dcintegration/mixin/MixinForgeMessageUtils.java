@@ -51,11 +51,13 @@ public class MixinForgeMessageUtils {
         ItemStack is,
         CompoundTag itemTag)
     {
-        if (item.get("id").getAsString().startsWith("the_vault"))
+        MessageEmbed result = MixinForgeMessageUtils.vaultHuntersDiscordIntegrator$craftVaultHuntersItemMessage(item,
+            is,
+            itemTag);
+
+        if (result != null)
         {
-            cir.setReturnValue(MixinForgeMessageUtils.vaultHuntersDiscordIntegrator$craftVaultHuntersItemMessage(item,
-                is,
-                itemTag));
+            cir.setReturnValue(result);
         }
     }
 
