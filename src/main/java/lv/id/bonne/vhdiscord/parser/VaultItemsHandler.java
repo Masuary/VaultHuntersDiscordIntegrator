@@ -276,6 +276,8 @@ public class VaultItemsHandler
                         VaultItemsHandler.handleCompanionTooltip(builder, itemStack);
                     case "create:attribute_filter" ->
                         VaultItemsHandler.handleAttributeFilterTooltip(builder, itemStack);
+                    case "the_vault:treasure_keyring" ->
+                        VaultItemsHandler.handleKeyringTooltip(builder, itemStack);
                     default ->
                     {
                         return null;
@@ -1527,6 +1529,61 @@ public class VaultItemsHandler
         }
 
         return readable.toString();
+    }
+
+
+    public static void handleKeyringTooltip(StringBuilder builder, ItemStack itemStack)
+    {
+        CompoundTag tag = itemStack.getTag();
+
+        if (tag == null || !tag.contains("stacks"))
+        {
+            builder.append("Empty\n");
+            return;
+        }
+
+        ListTag stacksTag = tag.getList("stacks", 10);
+        List<Map.Entry<String, Integer>> contents = new ArrayList<>();
+
+        for (int i = 0; i < stacksTag.size(); i++)
+        {
+            CompoundTag entry = stacksTag.getCompound(i);
+            int amount = entry.getInt("amount");
+
+            if (amount <= 0)
+            {
+                continue;
+            }
+
+            CompoundTag stackTag = entry.getCompound("stack");
+            String itemId = stackTag.getString("id");
+            ResourceLocation resourceLocation = ResourceLocation.tryParse(itemId);
+
+            if (resourceLocation != null)
+            {
+                Item keyItem = ForgeRegistries.ITEMS.getValue(resourceLocation);
+
+                if (keyItem != null)
+                {
+                    String displayName = new ItemStack(keyItem).getHoverName().getString();
+                    contents.add(Map.entry(displayName, amount));
+                }
+            }
+        }
+
+        if (contents.isEmpty())
+        {
+            builder.append("Empty\n");
+            return;
+        }
+
+        builder.append("**Contains:**\n");
+
+        for (Map.Entry<String, Integer> entry : contents)
+        {
+            builder.append(DOT).append(" ").append(entry.getValue()).append("x ")
+                .append(entry.getKey()).append("\n");
+        }
     }
 
 
