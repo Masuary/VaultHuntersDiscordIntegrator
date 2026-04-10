@@ -263,6 +263,30 @@ public class VaultItemsHandler
                 VaultItemsHandler.handleDeckSocketTooltip(builder, itemStack);
                 return builder.toString();
             }
+            else if ("the_vault:greedy_meal".equals(
+                Objects.toString(ForgeRegistries.ITEMS.getKey(itemStack.getItem()), "")))
+            {
+                VaultItemsHandler.handleGreedyMealTooltip(builder, itemStack);
+                return builder.toString();
+            }
+            else if ("the_vault:herald_trophy".equals(
+                Objects.toString(ForgeRegistries.ITEMS.getKey(itemStack.getItem()), "")))
+            {
+                VaultItemsHandler.handleHeraldTrophyTooltip(builder, itemStack);
+                return builder.toString();
+            }
+            else if ("the_vault:companion".equals(
+                Objects.toString(ForgeRegistries.ITEMS.getKey(itemStack.getItem()), "")))
+            {
+                VaultItemsHandler.handleCompanionTooltip(builder, itemStack);
+                return builder.toString();
+            }
+            else if ("create:attribute_filter".equals(
+                Objects.toString(ForgeRegistries.ITEMS.getKey(itemStack.getItem()), "")))
+            {
+                VaultItemsHandler.handleAttributeFilterTooltip(builder, itemStack);
+                return builder.toString();
+            }
         }
         catch (Exception e)
         {
@@ -1238,6 +1262,276 @@ public class VaultItemsHandler
         {
             builder.append("Empty\n");
         }
+    }
+
+
+    public static void handleGreedyMealTooltip(StringBuilder builder, ItemStack itemStack)
+    {
+        int xpAmount = itemStack.getTag().getInt("GreedXpBurger");
+
+        if (xpAmount > 0)
+        {
+            builder.append("**Grants ").append(String.format("%,d", xpAmount)).append(" Vault XP**\n");
+        }
+    }
+
+
+    public static void handleHeraldTrophyTooltip(StringBuilder builder, ItemStack itemStack)
+    {
+        CompoundTag blockEntityTag = itemStack.getOrCreateTagElement("BlockEntityTag");
+
+        String ownerName = blockEntityTag.getString("OwnerName");
+
+        if (!ownerName.isEmpty())
+        {
+            builder.append("**Awarded to:** ").append(ownerName).append("\n");
+        }
+
+        int timeTicks = blockEntityTag.getInt("Time");
+
+        if (timeTicks > 0)
+        {
+            builder.append("**Time:** ").append(UIHelper.formatTimeString(timeTicks)).append("\n");
+        }
+
+        String difficultyKey = blockEntityTag.getString("Difficulty");
+
+        if (!difficultyKey.isEmpty())
+        {
+            String displayName = difficultyKey.substring(0, 1).toUpperCase() +
+                difficultyKey.substring(1).replace("_", " ");
+            builder.append("**Difficulty:** ").append(displayName).append("\n");
+        }
+    }
+
+
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    public static void handleCompanionTooltip(StringBuilder builder, ItemStack itemStack)
+    {
+        CompoundTag tag = itemStack.getTag();
+
+        if (tag == null || !tag.contains("PetName") || !tag.contains("PetSeries"))
+        {
+            return;
+        }
+
+        int level = tag.contains("level") ? tag.getInt("level") : 1;
+        builder.append("**Level:** ").append(level).append("\n");
+
+        int hearts = tag.contains("hearts") ? tag.getInt("hearts") : 1;
+
+        if (hearts > 0)
+        {
+            builder.append("**Health:** ").append("\u2764".repeat(hearts)).append("\n");
+        }
+        else
+        {
+            builder.append("**Health:** Retired\n");
+        }
+
+        int cooldownSeconds = 0;
+
+        if (tag.contains("cooldownExpiry"))
+        {
+            long now = System.currentTimeMillis();
+            long expiry = tag.getLong("cooldownExpiry");
+            cooldownSeconds = (int) Math.max(0L, (expiry - now) / 1000L);
+        }
+
+        if (cooldownSeconds <= 0)
+        {
+            builder.append("**Cooldown:** Ready!\n");
+        }
+        else
+        {
+            long remainingTicks = cooldownSeconds * 20L;
+            builder.append("**Cooldown:** ").append(UIHelper.formatTimeString(remainingTicks)).append("\n");
+        }
+
+        String seriesRaw = tag.getString("PetSeries");
+
+        if (!seriesRaw.isEmpty())
+        {
+            String seriesDisplay = seriesRaw.substring(0, 1).toUpperCase() + seriesRaw.substring(1).toLowerCase();
+            builder.append("**Series:** ").append(seriesDisplay).append("\n");
+        }
+
+        if (tag.contains("temporal"))
+        {
+            ResourceLocation modifierId = ResourceLocation.tryParse(tag.getString("temporal"));
+
+            if (modifierId != null)
+            {
+                VaultModifierRegistry.getOpt(modifierId).ifPresent(vaultModifier ->
+                {
+                    builder.append("\n**Temporal Modifier**\n");
+                    builder.append(DOT).append(" ").append(vaultModifier.getDisplayName()).append("\n");
+                });
+            }
+        }
+
+        CompoundTag relicsTag = tag.getCompound("relics");
+
+        if (!relicsTag.isEmpty())
+        {
+            Map<ResourceLocation, Integer> modifierCounts = new LinkedHashMap<>();
+
+            for (String key : relicsTag.getAllKeys())
+            {
+                CompoundTag relicData = relicsTag.getCompound(key);
+                ListTag modifiersList = relicData.getList("modifiers", 8);
+
+                for (int i = 0; i < modifiersList.size(); i++)
+                {
+                    ResourceLocation id = ResourceLocation.tryParse(modifiersList.getString(i));
+
+                    if (id != null)
+                    {
+                        modifierCounts.merge(id, 1, Integer::sum);
+                    }
+                }
+            }
+
+            if (!modifierCounts.isEmpty())
+            {
+                builder.append("\n**Relics**\n");
+
+                modifierCounts.forEach((id, count) ->
+                    VaultModifierRegistry.getOpt(id).ifPresent(vaultModifier ->
+                    {
+                        if (count > 1)
+                        {
+                            builder.append(DOT).append(" ").append(count).append("x ")
+                                .append(vaultModifier.getDisplayName()).append("\n");
+                        }
+                        else
+                        {
+                            builder.append(DOT).append(" ").append(vaultModifier.getDisplayName()).append("\n");
+                        }
+                    }));
+            }
+        }
+    }
+
+
+    public static void handleAttributeFilterTooltip(StringBuilder builder, ItemStack itemStack)
+    {
+        CompoundTag tag = itemStack.getTag();
+
+        if (tag == null)
+        {
+            return;
+        }
+
+        int whitelistMode = tag.getInt("WhitelistMode");
+        String modeText = switch (whitelistMode)
+        {
+            case 1 -> "Allow-List (All)";
+            case 2 -> "Deny-List";
+            default -> "Allow-List (Any)";
+        };
+
+        builder.append("**").append(modeText).append("**\n");
+
+        ListTag attributes = tag.getList("MatchedAttributes", 10);
+
+        for (int i = 0; i < attributes.size(); i++)
+        {
+            if (i >= 5)
+            {
+                builder.append("...and ").append(attributes.size() - 5).append(" more\n");
+                break;
+            }
+
+            CompoundTag attributeTag = attributes.getCompound(i);
+            boolean inverted = attributeTag.getBoolean("Inverted");
+            String description = VaultItemsHandler.decodeAttributeFilterEntry(attributeTag);
+
+            builder.append(DOT).append(" ");
+
+            if (inverted)
+            {
+                builder.append("NOT ");
+            }
+
+            builder.append(description).append("\n");
+        }
+    }
+
+
+    private static String decodeAttributeFilterEntry(CompoundTag tag)
+    {
+        for (String key : tag.getAllKeys())
+        {
+            if ("Inverted".equals(key))
+            {
+                continue;
+            }
+
+            CompoundTag data = tag.getCompound(key);
+
+            return switch (key)
+            {
+                case "standard_trait" -> decodeStandardTrait(data);
+                case "in_tag" -> "in tag #" + data.getString("space") + ":" + data.getString("path");
+                case "added_by" -> "added by " + data.getString("id");
+                case "in_item_group" -> "in group " + data.getString("path");
+                case "has_enchant" -> "enchanted with " + data.getString("id");
+                case "has_name" -> "named \"" + data.getString("name") + "\"";
+                case "book_author" -> "by author " + data.getString("author");
+                case "has_color" -> "has color " + data.getString("color");
+                case "has_fluid" -> "contains fluid " + data.getString("id");
+                default -> formatAttributeKeyReadable(key, data);
+            };
+        }
+
+        return "unknown filter";
+    }
+
+
+    private static String decodeStandardTrait(CompoundTag data)
+    {
+        for (String traitName : data.getAllKeys())
+        {
+            if (data.getBoolean(traitName))
+            {
+                return traitName.charAt(0) + traitName.substring(1).toLowerCase().replace("_", " ");
+            }
+        }
+
+        return "unknown trait";
+    }
+
+
+    private static String formatAttributeKeyReadable(String key, CompoundTag data)
+    {
+        StringBuilder readable = new StringBuilder();
+
+        for (String part : key.split("_"))
+        {
+            if (!part.isEmpty())
+            {
+                if (readable.length() > 0)
+                {
+                    readable.append(" ");
+                }
+
+                readable.append(part.substring(0, 1).toUpperCase()).append(part.substring(1));
+            }
+        }
+
+        for (String dataKey : data.getAllKeys())
+        {
+            String value = data.getString(dataKey);
+
+            if (!value.isEmpty())
+            {
+                readable.append(": ").append(value);
+                break;
+            }
+        }
+
+        return readable.toString();
     }
 
 
