@@ -13,7 +13,6 @@ import java.util.*;
 import java.util.function.Predicate;
 
 import iskallia.vault.antique.Antique;
-import iskallia.vault.client.gui.helper.UIHelper;
 import iskallia.vault.config.AntiquesConfig;
 import iskallia.vault.config.PlayerTitlesConfig;
 import iskallia.vault.config.TrinketConfig;
@@ -1287,7 +1286,7 @@ public class VaultItemsHandler
 
         if (timeTicks > 0)
         {
-            builder.append("**Time:** ").append(UIHelper.formatTimeString(timeTicks)).append("\n");
+            builder.append("**Time:** ").append(VaultItemsHandler.formatTimeString(timeTicks)).append("\n");
         }
 
         String difficultyKey = blockEntityTag.getString("Difficulty");
@@ -1341,7 +1340,7 @@ public class VaultItemsHandler
         else
         {
             long remainingTicks = cooldownSeconds * 20L;
-            builder.append("**Cooldown:** ").append(UIHelper.formatTimeString(remainingTicks)).append("\n");
+            builder.append("**Cooldown:** ").append(VaultItemsHandler.formatTimeString(remainingTicks)).append("\n");
         }
 
         String seriesRaw = tag.getString("PetSeries");
@@ -2073,7 +2072,7 @@ public class VaultItemsHandler
                             append(VaultItemsHandler.DOT).
                             append(" ").
                             append("**Cooldown:** ").
-                            append(ticksLeft < 0L ? "Ready" : UIHelper.formatTimeString((int)ticksLeft)).
+                            append(ticksLeft < 0L ? "Ready" : VaultItemsHandler.formatTimeString((int)ticksLeft)).
                             append("\n");
                     }
 
@@ -2442,6 +2441,18 @@ public class VaultItemsHandler
      * Variable format for numbers.
      */
     private static final DecimalFormat FORMAT = new DecimalFormat("0.##");
+
+
+    private static String formatTimeString(long ticks)
+    {
+        long seconds = ticks / 20L % 60L;
+        long minutes = ticks / 20L / 60L % 60L;
+        long hours = ticks / 20L / 60L / 60L;
+
+        return hours > 0L
+            ? String.format("%02d:%02d:%02d", hours, minutes, seconds)
+            : String.format("%02d:%02d", minutes, seconds);
+    }
 
     private static final DecimalFormat PERCENT_FORMAT = new DecimalFormat("#.##%");
 }
