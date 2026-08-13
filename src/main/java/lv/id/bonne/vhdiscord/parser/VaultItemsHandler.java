@@ -28,8 +28,6 @@ import iskallia.vault.core.vault.influence.VaultGod;
 import iskallia.vault.core.vault.modifier.VaultModifierStack;
 import iskallia.vault.core.vault.modifier.spi.VaultModifier;
 import iskallia.vault.core.vault.objective.ParadoxObjective;
-import iskallia.vault.core.world.generator.layout.ArchitectRoomEntry;
-import iskallia.vault.core.world.generator.layout.DIYRoomEntry;
 import iskallia.vault.dynamodel.DynamicModel;
 import iskallia.vault.dynamodel.model.armor.ArmorPieceModel;
 import iskallia.vault.dynamodel.model.item.PlainItemModel;
@@ -87,14 +85,11 @@ import iskallia.vault.item.DeckSocketItem;
 import iskallia.vault.item.SigilItem;
 import iskallia.vault.item.tool.JewelItem;
 import iskallia.vault.item.tool.PaxelItem;
-import iskallia.vault.util.MiscUtils;
 import iskallia.vault.world.data.PlayerTitlesData;
 import lv.id.bonne.vhdiscord.vaulthunters.mixin.CardEntryAccessor;
 import lv.id.bonne.vhdiscord.vaulthunters.mixin.GearCardModifierAccessor;
 import lv.id.bonne.vhdiscord.vaulthunters.mixin.GearModificationItemAccessor;
 import lv.id.bonne.vhdiscord.vaulthunters.mixin.ReforgeTagModificationFocusInvoker;
-import net.minecraft.ChatFormatting;
-import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.network.chat.*;
@@ -103,6 +98,7 @@ import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.TooltipFlag;
+import net.minecraftforge.fml.ModList;
 import net.minecraftforge.registries.ForgeRegistries;
 
 
@@ -126,8 +122,12 @@ public class VaultItemsHandler
         try
         {
             StringBuilder builder = new StringBuilder();
-
-            if (itemStack.getItem() instanceof BottleItem)
+            String createString;
+            if (ModList.get().isLoaded("create")
+                    && (createString = CreateItemsHandler.generateCrateItemTooltips(itemStack)) != null) {
+                return createString;
+            }
+            else if (itemStack.getItem() instanceof BottleItem)
             {
                 VaultItemsHandler.handleBottleTooltip(builder, itemStack);
                 return builder.toString();
@@ -274,8 +274,6 @@ public class VaultItemsHandler
                         VaultItemsHandler.handleHeraldTrophyTooltip(builder, itemStack);
                     case "the_vault:companion" ->
                         VaultItemsHandler.handleCompanionTooltip(builder, itemStack);
-                    case "create:attribute_filter" ->
-                        VaultItemsHandler.handleAttributeFilterTooltip(builder, itemStack);
                     case "the_vault:treasure_keyring" ->
                         VaultItemsHandler.handleKeyringTooltip(builder, itemStack);
                     default ->
@@ -1408,127 +1406,6 @@ public class VaultItemsHandler
                     }));
             }
         }
-    }
-
-
-    public static void handleAttributeFilterTooltip(StringBuilder builder, ItemStack itemStack)
-    {
-        CompoundTag tag = itemStack.getTag();
-
-        if (tag == null)
-        {
-            return;
-        }
-
-        int whitelistMode = tag.getInt("WhitelistMode");
-        String modeText = switch (whitelistMode)
-        {
-            case 1 -> "Allow-List (All)";
-            case 2 -> "Deny-List";
-            default -> "Allow-List (Any)";
-        };
-
-        builder.append("**").append(modeText).append("**\n");
-
-        ListTag attributes = tag.getList("MatchedAttributes", 10);
-
-        for (int i = 0; i < attributes.size(); i++)
-        {
-            if (i >= 5)
-            {
-                builder.append("...and ").append(attributes.size() - 5).append(" more\n");
-                break;
-            }
-
-            CompoundTag attributeTag = attributes.getCompound(i);
-            boolean inverted = attributeTag.getBoolean("Inverted");
-            String description = VaultItemsHandler.decodeAttributeFilterEntry(attributeTag);
-
-            builder.append(DOT).append(" ");
-
-            if (inverted)
-            {
-                builder.append("NOT ");
-            }
-
-            builder.append(description).append("\n");
-        }
-    }
-
-
-    private static String decodeAttributeFilterEntry(CompoundTag tag)
-    {
-        for (String key : tag.getAllKeys())
-        {
-            if ("Inverted".equals(key))
-            {
-                continue;
-            }
-
-            CompoundTag data = tag.getCompound(key);
-
-            return switch (key)
-            {
-                case "standard_trait" -> decodeStandardTrait(data);
-                case "in_tag" -> "in tag #" + data.getString("space") + ":" + data.getString("path");
-                case "added_by" -> "added by " + data.getString("id");
-                case "in_item_group" -> "in group " + data.getString("path");
-                case "has_enchant" -> "enchanted with " + data.getString("id");
-                case "has_name" -> "named \"" + data.getString("name") + "\"";
-                case "book_author" -> "by author " + data.getString("author");
-                case "has_color" -> "has color " + data.getString("color");
-                case "has_fluid" -> "contains fluid " + data.getString("id");
-                default -> formatAttributeKeyReadable(key, data);
-            };
-        }
-
-        return "unknown filter";
-    }
-
-
-    private static String decodeStandardTrait(CompoundTag data)
-    {
-        for (String traitName : data.getAllKeys())
-        {
-            if (data.getBoolean(traitName))
-            {
-                return traitName.charAt(0) + traitName.substring(1).toLowerCase().replace("_", " ");
-            }
-        }
-
-        return "unknown trait";
-    }
-
-
-    private static String formatAttributeKeyReadable(String key, CompoundTag data)
-    {
-        StringBuilder readable = new StringBuilder();
-
-        for (String part : key.split("_"))
-        {
-            if (!part.isEmpty())
-            {
-                if (readable.length() > 0)
-                {
-                    readable.append(" ");
-                }
-
-                readable.append(part.substring(0, 1).toUpperCase()).append(part.substring(1));
-            }
-        }
-
-        for (String dataKey : data.getAllKeys())
-        {
-            String value = data.getString(dataKey);
-
-            if (!value.isEmpty())
-            {
-                readable.append(": ").append(value);
-                break;
-            }
-        }
-
-        return readable.toString();
     }
 
 

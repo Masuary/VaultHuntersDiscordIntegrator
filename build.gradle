@@ -141,10 +141,13 @@ dependencies {
     annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
 
     // Vault Hunters - local jar (3.21.2.6474)
-    implementation fg.deobf("the_vault:the_vault:1.18.2-3.21.2.6474")
+//    implementation fg.deobf("the_vault:the_vault:1.18.2-3.21.2.6474")
+    implementation fg.deobf("curse.maven:vault-hunters-official-mod-458203:8508967")
     implementation fg.deobf("curse.maven:dcintegration-324952:${dcintegration}")
     implementation fg.deobf("curse.maven:mc2discord-325235:${mc2discord}")
     implementation fg.deobf("curse.maven:simple-discord-link-bot-forge-fabric-spigot-541320:${sdlink}")
+
+    compileOnly fg.deobf("curse.maven:create-328085:5797603") // optional dep for filters
 
 //    Dependencies for Runtime Debug
 //    implementation fg.deobf("curse.maven:architects-palette-433862:4498424")
