@@ -103,6 +103,7 @@ import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.TooltipFlag;
+import net.minecraftforge.fml.ModList;
 import net.minecraftforge.registries.ForgeRegistries;
 
 
@@ -126,8 +127,13 @@ public class VaultItemsHandler
         try
         {
             StringBuilder builder = new StringBuilder();
+            String createString;
 
-            if (itemStack.getItem() instanceof BottleItem)
+            if (ModList.get().isLoaded("create") && (createString = CreateItemsHandler.generateCrateItemTooltips(itemStack)) != null)
+            {
+                return createString;
+            }
+            else if (itemStack.getItem() instanceof BottleItem)
             {
                 VaultItemsHandler.handleBottleTooltip(builder, itemStack);
                 return builder.toString();
