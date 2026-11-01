@@ -23,6 +23,5 @@ public class VHDiscordMixinConnector implements IMixinConnector
         Mixins.addConfiguration("mixins.vhdiscord.mc2discord.json");
         Mixins.addConfiguration("mixins.vhdiscord.sdlink.json");
         Mixins.addConfiguration("mixins.vhdiscord.vaulthunters.json");
-        Mixins.addConfiguration("mixins.vhdiscord.masuchatlink.json");
     }
 }
