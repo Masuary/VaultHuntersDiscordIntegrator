@@ -16,6 +16,7 @@ import iskallia.vault.antique.Antique;
 import iskallia.vault.config.AntiquesConfig;
 import iskallia.vault.config.PlayerTitlesConfig;
 import iskallia.vault.config.TrinketConfig;
+import iskallia.vault.config.UniqueGearConfig;
 import iskallia.vault.config.gear.VaultGearTagConfig;
 import iskallia.vault.config.gear.VaultGearTierConfig;
 import iskallia.vault.config.sigil.SigilConfig;
@@ -88,6 +89,7 @@ import iskallia.vault.item.SigilItem;
 import iskallia.vault.item.tool.JewelItem;
 import iskallia.vault.item.tool.PaxelItem;
 import iskallia.vault.util.MiscUtils;
+import iskallia.vault.util.TextUtil;
 import iskallia.vault.world.data.PlayerTitlesData;
 import lv.id.bonne.vhdiscord.vaulthunters.mixin.CardEntryAccessor;
 import lv.id.bonne.vhdiscord.vaulthunters.mixin.GearCardModifierAccessor;
@@ -312,6 +314,13 @@ public class VaultItemsHandler
     {
         VaultGearData data = VaultGearData.read(itemStack);
         VaultGearState state = data.getState();
+
+        // Add unique item lore
+        data.getFirstValue(ModGearAttributes.UNIQUE_ITEM_KEY).
+            flatMap(ModConfigs.UNIQUE_GEAR::getEntry).
+            map(UniqueGearConfig.Entry::getLore).
+            filter(lore -> !lore.isBlank()).
+            ifPresent(lore -> builder.append("*").append(TextUtil.applyColorTags(lore).getString().strip()).append("*\n"));
 
         // Add gear Level
         builder.append("**Level:** ").append(data.getItemLevel()).append("\n");
@@ -1979,9 +1988,10 @@ public class VaultItemsHandler
 
                     if (config != null)
                     {
-                        return modifier.getAttribute().getGenerator().getConfigDisplay(
+                        MutableComponent range = modifier.getAttribute().getGenerator().getConfigRangeDisplay(
                             modifier.getAttribute().getReader(),
                             config);
+                        return range == null ? new TextComponent("") : range;
                     }
                     else
                     {

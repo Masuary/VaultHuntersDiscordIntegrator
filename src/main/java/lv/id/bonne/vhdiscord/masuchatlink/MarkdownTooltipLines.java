@@ -41,6 +41,13 @@ public final class MarkdownTooltipLines
 
     private static final Pattern LABELLED = Pattern.compile("^\\*\\*([^*]+?):\\*\\*\\s*(.*)$");
 
+    /**
+     * A whole line in single asterisks: a unique item's lore, drawn gray and italic like the game, wrapped by words.
+     */
+    private static final Pattern LORE = Pattern.compile("^\\*([^*].*[^*])\\*$");
+
+    private static final int LORE_WIDTH = 48;
+
     private static final Pattern WHOLE_BOLD = Pattern.compile("^\\*\\*([^*]+)\\*\\*(.*)$");
 
     private static final Pattern TIER = Pattern.compile("^(.*?)( \\((?:\\*\\*Legendary\\*\\* )?T\\d+.*\\))$");
@@ -72,7 +79,17 @@ public final class MarkdownTooltipLines
 
         for (String raw : markdown.strip().split("\n", -1))
         {
-            lines.add(MarkdownTooltipLines.lineOf(raw, colourHints));
+            Matcher lore = LORE.matcher(raw.strip());
+
+            if (lore.matches())
+            {
+                MarkdownTooltipLines.wrap(lore.group(1), LORE_WIDTH).forEach(part ->
+                    lines.add(List.of(new TooltipSegment(part, GRAY, false, true))));
+            }
+            else
+            {
+                lines.add(MarkdownTooltipLines.lineOf(raw, colourHints));
+            }
         }
 
         if (modLine != null)
@@ -132,7 +149,7 @@ public final class MarkdownTooltipLines
 
         if (hint == null && wholeBold.matches())
         {
-            segments.add(new TooltipSegment(wholeBold.group(1), WHITE, true, false));
+            segments.add(new TooltipSegment(wholeBold.group(1), WHITE, false, false));
 
             if (!wholeBold.group(2).isBlank())
             {
@@ -213,6 +230,36 @@ public final class MarkdownTooltipLines
         }
 
         return segments;
+    }
+
+
+    private static List<String> wrap(String text, int width)
+    {
+        List<String> parts = new ArrayList<>();
+        StringBuilder current = new StringBuilder();
+
+        for (String word : text.split("\\s+"))
+        {
+            if (current.length() > 0 && current.length() + 1 + word.length() > width)
+            {
+                parts.add(current.toString());
+                current.setLength(0);
+            }
+
+            if (current.length() > 0)
+            {
+                current.append(' ');
+            }
+
+            current.append(word);
+        }
+
+        if (current.length() > 0)
+        {
+            parts.add(current.toString());
+        }
+
+        return parts;
     }
 
 
