@@ -33,7 +33,6 @@ import net.minecraftforge.registries.IForgeRegistry;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 
 
 /**
@@ -53,7 +52,7 @@ public class MasuChatLinkEventListener
     /**
      * The modifier colours noted while the last tooltip was built (chat events run on the server thread, one at a time).
      */
-    private Map<String, Integer> colourHints = Map.of();
+    private TooltipColorHints.Hints colourHints = TooltipColorHints.Hints.EMPTY;
 
 
     @SubscribeEvent

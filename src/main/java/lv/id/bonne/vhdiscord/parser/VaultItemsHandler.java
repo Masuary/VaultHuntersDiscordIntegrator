@@ -1945,39 +1945,9 @@ public class VaultItemsHandler
     {
         Optional.ofNullable(modifier.getAttribute().getReader().getDisplay(modifier, data, type, stack)).
             map(text -> {
-                String prefix = "";
-
-                String suffix = "";
-
-                if (modifier.hasCategory(VaultGearModifier.AffixCategory.LEGENDARY))
-                {
-                    prefix = LEGENDARY_SYMBOL + " ";
-                }
-
-                if (modifier.hasCategory(VaultGearModifier.AffixCategory.GREATER))
-                {
-                    prefix = GREATER_SYMBOL + " ";
-                }
-
-                if (modifier.hasCategory(VaultGearModifier.AffixCategory.IMBUED))
-                {
-                    prefix = IMBUED_SYMBOL + " ";
-                }
-
-                if (modifier.hasCategory(VaultGearModifier.AffixCategory.CORRUPTED))
-                {
-                    prefix = CORRUPTED_OPEN + " ";
-                    suffix = " " + CORRUPTED_CLOSE;
-                }
-
-                if (modifier.hasCategory(VaultGearModifier.AffixCategory.FROZEN))
-                {
-                    prefix = FROZEN_OPEN + " ";
-                    suffix = " " + FROZEN_CLOSE;
-                }
-
-                String line = prefix + text.getString() + suffix;
-                TooltipColorHints.record(line, text);
+                MutableComponent styled = AffixCategoryStyle.apply(modifier, text);
+                String line = styled.getString();
+                TooltipColorHints.record(line, styled);
                 return line;
             }).
             ifPresent(text ->
@@ -2029,7 +1999,9 @@ public class VaultItemsHandler
      */
     private static String createEmptyAffix(VaultGearModifier.AffixType type)
     {
-        return (SQUARE + " empty %s").formatted(type.name().toLowerCase(Locale.ROOT));
+        String line = (SQUARE + " empty %s").formatted(type.name().toLowerCase(Locale.ROOT));
+        TooltipColorHints.record(line, new TextComponent(line).withStyle(ChatFormatting.GRAY));
+        return line;
     }
 
 
@@ -2517,20 +2489,6 @@ public class VaultItemsHandler
     private static final int DURABILITY_COLOUR = 0xAAAAAA;
 
     private static final int BROKEN_COLOUR = 0xFF5555;
-
-    private static final String LEGENDARY_SYMBOL = "\u2726";
-
-    private static final String GREATER_SYMBOL = "\u29EB";
-
-    private static final String IMBUED_SYMBOL = "\u2724";
-
-    private static final String CORRUPTED_OPEN = "\u3010";
-
-    private static final String CORRUPTED_CLOSE = "\u3011";
-
-    private static final String FROZEN_OPEN = "\u276E";
-
-    private static final String FROZEN_CLOSE = "\u276F";
 
     private static final String CURSE = "\u2620";
 

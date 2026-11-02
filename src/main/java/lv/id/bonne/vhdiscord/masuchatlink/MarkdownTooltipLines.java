@@ -8,8 +8,10 @@ package lv.id.bonne.vhdiscord.masuchatlink;
 
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -64,14 +66,14 @@ public final class MarkdownTooltipLines
      * @param title the item's name.
      * @param titleColour the name's colour as #RRGGBB, or null for white.
      * @param markdown the description VaultItemsHandler wrote.
-     * @param colourHints plain modifier lines to their colour.
+     * @param hints the modifier runs and value colours noted while the markdown was written.
      * @param modLine the mod name line MasuChatLink added, or null.
      * @return one list of segments per tooltip line.
      */
     public static List<List<TooltipSegment>> convert(String title,
         String titleColour,
         String markdown,
-        Map<String, Integer> colourHints,
+        TooltipColorHints.Hints hints,
         List<TooltipSegment> modLine)
     {
         List<List<TooltipSegment>> lines = new ArrayList<>();
@@ -88,7 +90,7 @@ public final class MarkdownTooltipLines
             }
             else
             {
-                lines.add(MarkdownTooltipLines.lineOf(raw, colourHints));
+                lines.add(MarkdownTooltipLines.lineOf(raw, hints));
             }
         }
 
@@ -105,10 +107,10 @@ public final class MarkdownTooltipLines
      * Converts one markdown line.
      *
      * @param raw the markdown line.
-     * @param colourHints plain modifier lines to their colour.
+     * @param hints the modifier runs and value colours noted while the markdown was written.
      * @return the line's segments, empty for a blank line.
      */
-    private static List<TooltipSegment> lineOf(String raw, Map<String, Integer> colourHints)
+    private static List<TooltipSegment> lineOf(String raw, TooltipColorHints.Hints hints)
     {
         String line = raw.stripTrailing();
 
@@ -132,7 +134,7 @@ public final class MarkdownTooltipLines
             }
             else if (!value.isEmpty())
             {
-                Integer hint = colourHints.get(TooltipColorHints.VALUE_PREFIX + label);
+                Integer hint = hints.values().get(label);
                 segments.add(new TooltipSegment(value, hint == null ? WHITE : MarkdownTooltipLines.hex(hint), false, false));
             }
 
@@ -142,12 +144,16 @@ public final class MarkdownTooltipLines
         Matcher tier = TIER.matcher(line);
         String body = tier.matches() ? tier.group(1) : line;
         String tierText = tier.matches() ? MarkdownTooltipLines.plain(tier.group(2)) : null;
-        Integer hint = MarkdownTooltipLines.hintFor(body, colourHints);
+        List<TooltipSegment> styled = MarkdownTooltipLines.styledModifier(body, hints.lines());
         List<TooltipSegment> segments = new ArrayList<>();
 
         Matcher wholeBold = WHOLE_BOLD.matcher(body);
 
-        if (hint == null && wholeBold.matches())
+        if (styled != null)
+        {
+            segments.addAll(styled);
+        }
+        else if (wholeBold.matches())
         {
             segments.add(new TooltipSegment(wholeBold.group(1), WHITE, false, false));
 
@@ -158,8 +164,7 @@ public final class MarkdownTooltipLines
         }
         else
         {
-            String colour = hint == null ? WHITE : MarkdownTooltipLines.hex(hint);
-            segments.add(new TooltipSegment(MarkdownTooltipLines.plain(body), colour, false, false));
+            segments.add(new TooltipSegment(MarkdownTooltipLines.plain(body), WHITE, false, false));
         }
 
         if (tierText != null)
@@ -172,41 +177,75 @@ public final class MarkdownTooltipLines
 
 
     /**
-     * Finds the colour noted for a modifier line: an exact match first, else the longest noted line it starts with.
+     * Draws a modifier line with the runs the game styled it with (category symbols in their own colours): an exact
+     * match first, else the longest noted line it starts with, the rest in the last run's style.
      *
      * @param body the line without its tier details.
-     * @param colourHints plain modifier lines to their colour.
-     * @return the colour, or null.
+     * @param noted plain modifier lines to their styled runs.
+     * @return the segments, or null when the line was not noted.
      */
-    private static Integer hintFor(String body, Map<String, Integer> colourHints)
+    private static List<TooltipSegment> styledModifier(String body, Map<String, List<TooltipColorHints.Run>> noted)
     {
-        Integer exact = colourHints.get(body);
+        String best = noted.containsKey(body) ? body : noted.keySet().stream().
+            filter(body::startsWith).
+            max(Comparator.comparingInt(String::length)).
+            orElse(null);
 
-        if (exact != null)
+        if (best == null || noted.get(best).isEmpty())
         {
-            return exact;
+            return null;
         }
 
-        String best = null;
+        List<TooltipSegment> segments = new ArrayList<>();
+        TooltipColorHints.Run last = null;
 
-        for (String noted : colourHints.keySet())
+        for (TooltipColorHints.Run run : noted.get(best))
         {
-            if (body.startsWith(noted) && (best == null || noted.length() > best.length()))
-            {
-                best = noted;
-            }
+            MarkdownTooltipLines.appendMerged(segments, MarkdownTooltipLines.segmentOf(run.text(), run));
+            last = run;
         }
 
-        return best == null ? null : colourHints.get(best);
+        if (body.length() > best.length())
+        {
+            segments.add(MarkdownTooltipLines.segmentOf(MarkdownTooltipLines.plain(body.substring(best.length())), last));
+        }
+
+        return segments;
     }
 
 
     /**
-     * Drops the bold markers Discord markdown uses.
+     * Appends a segment, joining it to the previous one when both look the same, so a line stays a few segments long.
      *
-     * @param text the markdown text.
-     * @return the text without {@code **}.
+     * @param segments the line so far.
+     * @param segment the segment to add.
      */
+    private static void appendMerged(List<TooltipSegment> segments, TooltipSegment segment)
+    {
+        TooltipSegment previous = segments.isEmpty() ? null : segments.get(segments.size() - 1);
+
+        if (previous != null &&
+            Objects.equals(previous.color(), segment.color()) &&
+            previous.bold() == segment.bold() &&
+            previous.italic() == segment.italic())
+        {
+            segments.set(segments.size() - 1,
+                new TooltipSegment(previous.text() + segment.text(), previous.color(), previous.bold(), previous.italic()));
+        }
+        else
+        {
+            segments.add(segment);
+        }
+    }
+
+
+    private static TooltipSegment segmentOf(String text, TooltipColorHints.Run style)
+    {
+        String colour = style.colour() == null ? WHITE : MarkdownTooltipLines.hex(style.colour());
+        return new TooltipSegment(text, colour, style.bold(), style.italic());
+    }
+
+
     /**
      * The repair dots as the game draws them: used repairs yellow, the remaining ones gray.
      *
@@ -269,6 +308,12 @@ public final class MarkdownTooltipLines
     }
 
 
+    /**
+     * Drops the bold markers Discord markdown uses.
+     *
+     * @param text the markdown text.
+     * @return the text without {@code **}.
+     */
     private static String plain(String text)
     {
         return text.replace("**", "");

@@ -7,8 +7,11 @@
 package lv.id.bonne.vhdiscord.parser;
 
 
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 
 import net.minecraft.network.chat.Component;
@@ -17,21 +20,17 @@ import net.minecraft.network.chat.TextColor;
 
 
 /**
- * Remembers the colour of each gear modifier line and labelled value while {@link VaultItemsHandler} flattens it to
- * plain text, so the MasuChatLink integration can draw the tooltip in the game's colours. Only collects between {@link #start()} and
- * {@link #take()} on the same thread; other callers (mc2discord, DCIntegration) never start it and pay nothing.
+ * Remembers how the game styles each gear modifier line (its category symbols and their colours included) and the
+ * colour of each labelled value while {@link VaultItemsHandler} flattens the tooltip to plain text, so the MasuChatLink
+ * integration can draw the tooltip as the game does. Only collects between {@link #start()} and {@link #take()} on the
+ * same thread; other callers (mc2discord, DCIntegration) never start it and pay nothing.
  */
 public final class TooltipColorHints
 {
     /**
-     * Key prefix of a hint that colours only the value of a labelled line ({@code **Rarity:** Common}), keyed by its label.
-     */
-    public static final String VALUE_PREFIX = "value:";
-
-    /**
      * The hints of the tooltip being built on this thread, or null when nobody asked for them.
      */
-    private static final ThreadLocal<Map<String, Integer>> HINTS = new ThreadLocal<>();
+    private static final ThreadLocal<Hints> HINTS = new ThreadLocal<>();
 
 
     private TooltipColorHints()
@@ -44,37 +43,36 @@ public final class TooltipColorHints
      */
     public static void start()
     {
-        HINTS.set(new LinkedHashMap<>());
+        HINTS.set(new Hints(new LinkedHashMap<>(), new LinkedHashMap<>()));
     }
 
 
     /**
-     * Ends collecting and returns the hints: plain line text to its RGB colour.
+     * Ends collecting and returns the hints.
      *
      * @return the collected hints, empty when nothing was started.
      */
-    public static Map<String, Integer> take()
+    public static Hints take()
     {
-        Map<String, Integer> hints = HINTS.get();
+        Hints hints = HINTS.get();
         HINTS.remove();
-        return hints == null ? Map.of() : hints;
+        return hints == null ? Hints.EMPTY : hints;
     }
 
 
     /**
-     * Records the colour of a modifier line, read from the first coloured part of its component.
+     * Records the styled runs of a modifier line.
      *
      * @param line the plain text the line is written as.
-     * @param component the modifier's display component.
+     * @param component the modifier's display component, category formatting applied.
      */
     static void record(String line, Component component)
     {
-        Map<String, Integer> hints = HINTS.get();
-        Integer colour = TooltipColorHints.colourOf(component);
+        Hints hints = HINTS.get();
 
-        if (hints != null && colour != null)
+        if (hints != null)
         {
-            hints.put(line, colour);
+            hints.lines().put(line, TooltipColorHints.runsOf(component));
         }
     }
 
@@ -87,11 +85,11 @@ public final class TooltipColorHints
      */
     static void recordValue(String label, int colour)
     {
-        Map<String, Integer> hints = HINTS.get();
+        Hints hints = HINTS.get();
 
         if (hints != null)
         {
-            hints.put(VALUE_PREFIX + label, colour);
+            hints.values().put(label, colour);
         }
     }
 
@@ -104,36 +102,62 @@ public final class TooltipColorHints
      */
     static void recordValue(String label, Component component)
     {
-        Integer colour = TooltipColorHints.colourOf(component);
-
-        if (colour != null)
-        {
-            TooltipColorHints.recordValue(label, colour);
-        }
+        TooltipColorHints.runsOf(component).stream().
+            map(Run::colour).
+            filter(Objects::nonNull).
+            findFirst().
+            ifPresent(colour -> TooltipColorHints.recordValue(label, colour));
     }
 
 
     /**
-     * The colour of the first coloured, non-blank part of a component.
+     * The non-empty text runs of a component with their effective style.
      *
      * @param component the component.
-     * @return its RGB colour, or null when no part is coloured.
+     * @return the runs in order.
      */
-    private static Integer colourOf(Component component)
+    private static List<Run> runsOf(Component component)
     {
-        Integer[] colour = { null };
+        List<Run> runs = new ArrayList<>();
         component.visit((style, text) ->
         {
-            TextColor textColor = style.getColor();
-
-            if (colour[0] == null && textColor != null && !text.isBlank())
+            if (!text.isEmpty())
             {
-                colour[0] = textColor.getValue();
+                TextColor colour = style.getColor();
+                runs.add(new Run(text, colour == null ? null : colour.getValue(), style.isBold(), style.isItalic()));
             }
 
             return Optional.empty();
         }, Style.EMPTY);
 
-        return colour[0];
+        return runs;
+    }
+
+
+    /**
+     * One styled run of a modifier line.
+     *
+     * @param text the run's text.
+     * @param colour its RGB colour, or null for the default.
+     * @param bold whether it is bold.
+     * @param italic whether it is italic.
+     */
+    public record Run(String text, Integer colour, boolean bold, boolean italic)
+    {
+    }
+
+
+    /**
+     * What was noted while one tooltip was built.
+     *
+     * @param lines plain modifier lines to their styled runs.
+     * @param values labels (without colon) to their value's RGB colour.
+     */
+    public record Hints(Map<String, List<Run>> lines, Map<String, Integer> values)
+    {
+        /**
+         * No hints: nothing was collected.
+         */
+        public static final Hints EMPTY = new Hints(Map.of(), Map.of());
     }
 }
