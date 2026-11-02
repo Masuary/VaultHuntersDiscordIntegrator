@@ -13,8 +13,11 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.masuary.masuchatlink.api.ChatRelayEvent;
 import com.masuary.masuchatlink.api.ChatRelayItem;
+import com.masuary.masuchatlink.api.TooltipSegment;
+import com.masuary.masuchatlink.api.TooltipSlot;
 import com.mojang.brigadier.StringReader;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
+import lv.id.bonne.vhdiscord.parser.TooltipColorHints;
 import lv.id.bonne.vhdiscord.parser.VaultItemsHandler;
 import net.minecraft.commands.arguments.NbtTagArgument;
 import net.minecraft.nbt.CompoundTag;
@@ -27,6 +30,10 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.registries.ForgeRegistries;
 import net.minecraftforge.registries.IForgeRegistry;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 
 
 /**
@@ -41,6 +48,12 @@ public class MasuChatLinkEventListener
      * The Forge Item registry.
      */
     private static final IForgeRegistry<Item> VH_DISCORD_ITEM_REGISTRY = ForgeRegistries.ITEMS;
+
+
+    /**
+     * The modifier colours noted while the last tooltip was built (chat events run on the server thread, one at a time).
+     */
+    private Map<String, Integer> colourHints = Map.of();
 
 
     @SubscribeEvent
@@ -111,11 +124,28 @@ public class MasuChatLinkEventListener
             }
 
             CompoundTag itemTag = itemStack.getOrCreateTag();
+            ChatRelayItem generic = event.getItem();
+            List<TooltipSlot> slots = this.coinSlotsOf(itemStack, itemTag);
 
-            String description = VaultItemsHandler.generateVaultHuntersItemTooltips(itemJson, itemStack, itemTag);
+            TooltipColorHints.start();
+            String description;
+
+            try
+            {
+                description = VaultItemsHandler.generateVaultHuntersItemTooltips(itemJson, itemStack, itemTag);
+            }
+            finally
+            {
+                this.colourHints = TooltipColorHints.take();
+            }
 
             if (description == null || description.isBlank())
             {
+                if (generic != null && slots != null)
+                {
+                    event.setItem(generic.withSlots(slots));
+                }
+
                 return;
             }
 
@@ -123,11 +153,82 @@ public class MasuChatLinkEventListener
                 new TranslatableComponent(itemStack.getItem().getDescriptionId()).getContents();
             String title = itemName.isBlank() ? itemStack.getHoverName().getString() : itemName;
 
-            event.setItem(new ChatRelayItem(title, this.colourOf(itemStack), description));
+            event.setItem(new ChatRelayItem(title,
+                this.colourOf(itemStack),
+                description,
+                this.linesOf(generic, title, itemStack, description),
+                slots));
         }
         catch (CommandSyntaxException ignored)
         {
         }
+    }
+
+
+    /**
+     * The tooltip lines for the in-game picture: the tooltip Vault Hunters built on the server when MasuChatLink got more
+     * than the name and the mod line, otherwise this handler's description in the game's colours.
+     *
+     * @param generic the item MasuChatLink attached, or null.
+     * @param title the item's name.
+     * @param itemStack the item.
+     * @param description the description VaultItemsHandler wrote.
+     * @return the lines.
+     */
+    private List<List<TooltipSegment>> linesOf(ChatRelayItem generic, String title, ItemStack itemStack, String description)
+    {
+        List<List<TooltipSegment>> serverLines = generic == null ? null : generic.lines();
+
+        if (serverLines != null && serverLines.size() > 2)
+        {
+            return serverLines;
+        }
+
+        List<TooltipSegment> modLine = serverLines == null || serverLines.isEmpty() ? null : serverLines.get(serverLines.size() - 1);
+        TextColor colour = itemStack.getHoverName().getStyle().getColor();
+        String titleColour = colour == null ? null : String.format("#%06X", colour.getValue() & 0xFFFFFF);
+
+        return MarkdownTooltipLines.convert(title, titleColour, description, this.colourHints, modLine);
+    }
+
+
+    /**
+     * The coins in a Vault Hunters Coin Pouch as slots for the picture; the game draws them on the client only, but the
+     * counts are on the item.
+     *
+     * @param itemStack the item.
+     * @param itemTag the item's tag.
+     * @return the non-empty coin slots, or null when the item is not a coin pouch.
+     */
+    private List<TooltipSlot> coinSlotsOf(ItemStack itemStack, CompoundTag itemTag)
+    {
+        ResourceLocation id = VH_DISCORD_ITEM_REGISTRY.getKey(itemStack.getItem());
+
+        if (id == null || !id.toString().equals("the_vault:coin_pouch"))
+        {
+            return null;
+        }
+
+        CompoundTag coins = itemTag.getCompound("Inventory");
+        List<TooltipSlot> slots = new ArrayList<>();
+        String[][] coinKeys = {
+            { "BronzeStackSize", "coin_bronze" },
+            { "SilverStackSize", "coin_silver" },
+            { "GoldStackSize", "coin_gold" },
+            { "PlatinumStackSize", "coin_platinum" },
+            { "GreedCoinStackSize", "coin_greed" } };
+
+        for (String[] coin : coinKeys)
+        {
+            int count = coins.getInt(coin[0]);
+
+            if (count > 0)
+            {
+                slots.add(new TooltipSlot(coin[1], count));
+            }
+        }
+
+        return slots;
     }
 
 

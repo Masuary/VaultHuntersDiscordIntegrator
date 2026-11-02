@@ -315,10 +315,14 @@ public class VaultItemsHandler
 
         // Add gear Level
         builder.append("**Level:** ").append(data.getItemLevel()).append("\n");
+        TooltipColorHints.recordValue("Level", LEVEL_COLOUR);
 
         // Add crafter name
         data.getFirstValue(ModGearAttributes.CRAFTED_BY).ifPresent(crafter ->
-            builder.append("**Crafted by:** ").append(crafter).append("\n"));
+        {
+            builder.append("**Crafted by:** ").append(crafter).append("\n");
+            TooltipColorHints.recordValue("Crafted by", CRAFTER_COLOUR);
+        });
 
         // Add Rarity
         switch (state)
@@ -328,11 +332,16 @@ public class VaultItemsHandler
                 Objects.requireNonNull(ModConfigs.VAULT_GEAR_TYPE_CONFIG);
                 data.getFirstValue(ModGearAttributes.GEAR_ROLL_TYPE).
                     flatMap(ModConfigs.VAULT_GEAR_TYPE_CONFIG::getRollPool).
-                    ifPresent(pool -> builder.append("**Roll:** ").append(pool.getName()).append("\n"));
+                    ifPresent(pool ->
+                    {
+                        builder.append("**Roll:** ").append(pool.getName()).append("\n");
+                        TooltipColorHints.recordValue("Roll", pool.getColor());
+                    });
             }
             case IDENTIFIED ->
             {
                 builder.append("**Rarity:** ").append(data.getRarity().getDisplayName().getString()).append("\n");
+                TooltipColorHints.recordValue("Rarity", data.getRarity().getDisplayName());
             }
         }
 
@@ -348,6 +357,7 @@ public class VaultItemsHandler
                     builder.append("**Slot:** ").
                         append(new TranslatableComponent("the_vault.equipment." + slot.getName()).getString()).
                         append("\n");
+                    TooltipColorHints.recordValue("Slot", SLOT_COLOUR);
                 }
             }
 
@@ -364,6 +374,7 @@ public class VaultItemsHandler
             if (VaultGearItem.of(itemStack).isBroken(itemStack))
             {
                 builder.append("**Durability:** ").append("BROKEN").append("\n");
+                TooltipColorHints.recordValue("Durability", BROKEN_COLOUR);
             }
             else if (itemStack.isDamageableItem() && itemStack.getMaxDamage() > 0)
             {
@@ -371,6 +382,7 @@ public class VaultItemsHandler
                     itemStack.getMaxDamage() - itemStack.getDamageValue(),
                         itemStack.getMaxDamage())).
                     append("\n");
+                TooltipColorHints.recordValue("Durability", DURABILITY_COLOUR);
             }
 
             // Add Model
@@ -388,6 +400,8 @@ public class VaultItemsHandler
                         }
 
                         builder.append("**Model:** ").append(name).append("\n");
+                        TooltipColorHints.recordValue("Model",
+                            ModConfigs.GEAR_MODEL_ROLL_RARITIES.getRarityOf(itemStack, gearModel.getId()).getColor().getValue());
                     }
                 });
 
@@ -1953,7 +1967,9 @@ public class VaultItemsHandler
                     suffix = " " + FROZEN_CLOSE;
                 }
 
-                return prefix + text.getString() + suffix;
+                String line = prefix + text.getString() + suffix;
+                TooltipColorHints.record(line, text);
+                return line;
             }).
             ifPresent(text ->
             {
@@ -2478,6 +2494,19 @@ public class VaultItemsHandler
     private static final String FULL_CIRCLE = "\u25CF";
 
     private static final String SQUARE = "\u25A0";
+
+    /**
+     * The colours the game's gear tooltip gives these values.
+     */
+    private static final int LEVEL_COLOUR = 0xB0C0FA;
+
+    private static final int CRAFTER_COLOUR = 0xFFE400;
+
+    private static final int SLOT_COLOUR = 0xE2E28A;
+
+    private static final int DURABILITY_COLOUR = 0xAAAAAA;
+
+    private static final int BROKEN_COLOUR = 0xFF5555;
 
     private static final String LEGENDARY_SYMBOL = "\u2726";
 

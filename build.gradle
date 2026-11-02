@@ -155,7 +155,7 @@ dependencies {
     // PlayerListBroadcastMixin, configured sources including iskallia.vault), so this fork no longer
     // mixes into PlayerList for that; it only attaches item tooltips via ChatRelayEvent.
     compileOnly files(providers.gradleProperty('masuchatlink_jar').getOrElse(
-            '/mnt/data/Minecraft/Mods/MasuChatLink/build/libs/masuchatlink-1.0.0.jar'))
+            '/mnt/data/Minecraft/Mods/MasuChatLink/build/libs/masuchatlink-1.1.0.jar'))
 
 //    Dependencies for Runtime Debug
 //    implementation fg.deobf("curse.maven:architects-palette-433862:4498424")
