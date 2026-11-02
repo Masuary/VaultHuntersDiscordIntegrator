@@ -33,6 +33,7 @@ import net.minecraftforge.registries.IForgeRegistry;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 
 /**
@@ -165,8 +166,9 @@ public class MasuChatLinkEventListener
 
 
     /**
-     * The tooltip lines for the in-game picture: the tooltip Vault Hunters built on the server when MasuChatLink got more
-     * than the name and the mod line, otherwise this handler's description in the game's colours.
+     * The tooltip lines for the in-game picture: this handler's description in the game's colours, followed by the lines
+     * of the tooltip MasuChatLink built on the server that the description lacks (enchantments: on a server Vault Hunters
+     * builds only those vanilla parts, its own gear tooltip is client-only).
      *
      * @param generic the item MasuChatLink attached, or null.
      * @param title the item's name.
@@ -176,18 +178,17 @@ public class MasuChatLinkEventListener
      */
     private List<List<TooltipSegment>> linesOf(ChatRelayItem generic, String title, ItemStack itemStack, String description)
     {
-        List<List<TooltipSegment>> serverLines = generic == null ? null : generic.lines();
-
-        if (serverLines != null && serverLines.size() > 2)
-        {
-            return serverLines;
-        }
-
-        List<TooltipSegment> modLine = serverLines == null || serverLines.isEmpty() ? null : serverLines.get(serverLines.size() - 1);
+        List<List<TooltipSegment>> serverLines = generic == null || generic.lines() == null ? List.of() : generic.lines();
+        List<TooltipSegment> modLine = serverLines.isEmpty() ? null : serverLines.get(serverLines.size() - 1);
+        String described = description.replace("**", "");
+        List<List<TooltipSegment>> missing = serverLines.size() <= 2 ? List.of() : serverLines.subList(1, serverLines.size() - 1).stream().
+            filter(line -> !line.isEmpty()).
+            filter(line -> !described.contains(line.stream().map(TooltipSegment::text).collect(Collectors.joining()).strip())).
+            toList();
         TextColor colour = itemStack.getHoverName().getStyle().getColor();
         String titleColour = colour == null ? null : String.format("#%06X", colour.getValue() & 0xFFFFFF);
 
-        return MarkdownTooltipLines.convert(title, titleColour, description, this.colourHints, modLine);
+        return MarkdownTooltipLines.convert(title, titleColour, description, this.colourHints, missing, modLine);
     }
 
 

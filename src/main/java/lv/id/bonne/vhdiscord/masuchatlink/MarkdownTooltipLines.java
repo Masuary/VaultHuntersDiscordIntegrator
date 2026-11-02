@@ -67,6 +67,7 @@ public final class MarkdownTooltipLines
      * @param titleColour the name's colour as #RRGGBB, or null for white.
      * @param markdown the description VaultItemsHandler wrote.
      * @param hints the modifier runs and value colours noted while the markdown was written.
+     * @param extraLines lines to add after the description, as they are.
      * @param modLine the mod name line MasuChatLink added, or null.
      * @return one list of segments per tooltip line.
      */
@@ -74,6 +75,7 @@ public final class MarkdownTooltipLines
         String titleColour,
         String markdown,
         TooltipColorHints.Hints hints,
+        List<List<TooltipSegment>> extraLines,
         List<TooltipSegment> modLine)
     {
         List<List<TooltipSegment>> lines = new ArrayList<>();
@@ -93,6 +95,8 @@ public final class MarkdownTooltipLines
                 lines.add(MarkdownTooltipLines.lineOf(raw, hints));
             }
         }
+
+        lines.addAll(extraLines);
 
         if (modLine != null)
         {
@@ -144,7 +148,7 @@ public final class MarkdownTooltipLines
         Matcher tier = TIER.matcher(line);
         String body = tier.matches() ? tier.group(1) : line;
         String tierText = tier.matches() ? MarkdownTooltipLines.plain(tier.group(2)) : null;
-        List<TooltipSegment> styled = MarkdownTooltipLines.styledModifier(body, hints.lines());
+        List<TooltipSegment> styled = MarkdownTooltipLines.styledModifier(MarkdownTooltipLines.plain(body), hints.lines());
         List<TooltipSegment> segments = new ArrayList<>();
 
         Matcher wholeBold = WHOLE_BOLD.matcher(body);

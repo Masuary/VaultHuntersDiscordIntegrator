@@ -454,19 +454,24 @@ public class VaultItemsHandler
             }
         }
 
-        if (data.isCorrupted())
+        if (data.isImbued())
         {
-            builder.append("\n").append("**Corrupted**").append(" (Unmodifiable Item)");
+            builder.append("\n").append("**Imbued**");
+            TooltipColorHints.record("Imbued", new TextComponent("Imbued").withStyle(Style.EMPTY.withColor(IMBUED_COLOUR)));
         }
 
         if (data.isSealed())
         {
             builder.append("\n").append("**Sealed**");
+            TooltipColorHints.record("Sealed", new TextComponent("Sealed").withStyle(Style.EMPTY.withColor(SEALED_COLOUR)));
         }
 
-        if (data.isImbued())
+        if (data.isCorrupted())
         {
-            builder.append("\n").append("**Imbued**");
+            builder.append("\n").append("**Corrupted**").append(" (Unmodifiable Item)");
+            TooltipColorHints.record("Corrupted (Unmodifiable Item)",
+                new TextComponent("Corrupted").withStyle(Style.EMPTY.withColor(CORRUPTED_COLOUR)).
+                    append(new TextComponent(" (Unmodifiable Item)").withStyle(ChatFormatting.GRAY)));
         }
     }
 
@@ -2489,6 +2494,12 @@ public class VaultItemsHandler
     private static final int DURABILITY_COLOUR = 0xAAAAAA;
 
     private static final int BROKEN_COLOUR = 0xFF5555;
+
+    private static final int IMBUED_COLOUR = 0xA821FC;
+
+    private static final int SEALED_COLOUR = 0xC2FF7A;
+
+    private static final int CORRUPTED_COLOUR = 0x780004;
 
     private static final String CURSE = "\u2620";
 
