@@ -17,6 +17,7 @@ import com.masuary.masuchatlink.api.TooltipSegment;
 import com.masuary.masuchatlink.api.TooltipSlot;
 import com.mojang.brigadier.StringReader;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
+import com.mojang.logging.LogUtils;
 import lv.id.bonne.vhdiscord.parser.TooltipColorHints;
 import lv.id.bonne.vhdiscord.parser.VaultItemsHandler;
 import net.minecraft.commands.arguments.NbtTagArgument;
@@ -30,9 +31,13 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.registries.ForgeRegistries;
 import net.minecraftforge.registries.IForgeRegistry;
+import org.slf4j.Logger;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 
@@ -54,6 +59,16 @@ public class MasuChatLinkEventListener
      * The modifier colours noted while the last tooltip was built (chat events run on the server thread, one at a time).
      */
     private TooltipColorHints.Hints colourHints = TooltipColorHints.Hints.EMPTY;
+
+    /**
+     * The logger: a failed picture is reported once per item id, the chat entry keeps MasuChatLink's own item.
+     */
+    private static final Logger LOGGER = LogUtils.getLogger();
+
+    /**
+     * Item ids whose picture failed, so each is logged once.
+     */
+    private static final Set<String> FAILED_ITEMS = ConcurrentHashMap.newKeySet();
 
 
     @SubscribeEvent
@@ -153,14 +168,28 @@ public class MasuChatLinkEventListener
                 new TranslatableComponent(itemStack.getItem().getDescriptionId()).getContents();
             String title = itemName.isBlank() ? itemStack.getHoverName().getString() : itemName;
 
+            List<List<TooltipSegment>> serverLines = generic == null || generic.lines() == null ? List.of() : generic.lines();
+            List<TooltipSegment> modLine = serverLines.isEmpty() ? null : serverLines.get(serverLines.size() - 1);
+            Optional<DeckPicture.Picture> deck = DeckPicture.of(itemStack, modLine);
+
             event.setItem(new ChatRelayItem(title,
                 this.colourOf(itemStack),
                 description,
-                this.linesOf(generic, title, itemStack, description),
-                slots));
+                deck.map(DeckPicture.Picture::lines).orElseGet(() -> this.linesOf(generic, title, itemStack, description)),
+                slots,
+                deck.map(DeckPicture.Picture::deck).orElse(null)));
         }
         catch (CommandSyntaxException ignored)
         {
+        }
+        catch (RuntimeException | LinkageError failure)
+        {
+            String id = itemJson.has("id") ? itemJson.get("id").getAsString() : "an unknown item";
+
+            if (FAILED_ITEMS.add(id))
+            {
+                LOGGER.warn("Could not build the tooltip picture of {}; it is posted without one", id, failure);
+            }
         }
     }
 

@@ -994,70 +994,82 @@ public class VaultItemsHandler
 
     public static void handleDeckSocketTooltip(StringBuilder builder, ItemStack itemStack)
     {
-        DeckSocketItem.getDeckModifier(itemStack).ifPresent(modifier ->
+        DeckSocketItem.getDeckModifier(itemStack).
+            map(VaultItemsHandler::describeDeckModifier).
+            ifPresent(text -> builder.append(text).append("\n"));
+    }
+
+
+    /**
+     * This method describes what a deck core does, as its tooltip says it.
+     * @param modifier Deck modifier of the core.
+     * @return The description, or null for a modifier without one.
+     */
+    public static String describeDeckModifier(DeckModifier<?> modifier)
+    {
+        float value = modifier.getModifierValue();
+
+        if (modifier instanceof StatEfficiencyDeckModifier)
         {
-            float value = modifier.getModifierValue();
+            return String.format("+%.1f%% Stat card efficiency per unique deck color", value * 100f);
+        }
+        else if (modifier instanceof NonFoilEfficiencyDeckModifier)
+        {
+            return String.format("+%.1f%% Efficiency to all Stat and Evolution cards per non-foil card in the deck", value * 100f);
+        }
+        else if (modifier instanceof ResourceDoubleDeckModifier)
+        {
+            return String.format("+%.0f%% chance for Resource cards to double rewards", value * 100f);
+        }
+        else if (modifier instanceof ResourceRequirementDeckModifier)
+        {
+            return String.format("-%.0f%% Resource card requirements", value * 100f);
+        }
+        else if (modifier instanceof GlobalDeckModifier globalModifier)
+        {
+            List<String> affectedCards = new ArrayList<>();
+            affectedCards.addAll(globalModifier.getConfig().requiredColors.stream()
+                .map(Enum::name)
+                .map(s -> s.substring(0, 1).toUpperCase() + s.substring(1).toLowerCase())
+                .toList());
+            affectedCards.addAll(globalModifier.getConfig().requiredGroups.stream()
+                .map(s -> s.substring(0, 1).toUpperCase() + s.substring(1).toLowerCase())
+                .toList());
 
-            if (modifier instanceof StatEfficiencyDeckModifier)
-            {
-                builder.append(String.format("+%.1f%% Stat card efficiency per unique deck color", value * 100f)).append("\n");
-            }
-            else if (modifier instanceof NonFoilEfficiencyDeckModifier)
-            {
-                builder.append(String.format("+%.1f%% Efficiency to all Stat and Evolution cards per non-foil card in the deck", value * 100f)).append("\n");
-            }
-            else if (modifier instanceof ResourceDoubleDeckModifier)
-            {
-                builder.append(String.format("+%.0f%% chance for Resource cards to double rewards", value * 100f)).append("\n");
-            }
-            else if (modifier instanceof ResourceRequirementDeckModifier)
-            {
-                builder.append(String.format("-%.0f%% Resource card requirements", value * 100f)).append("\n");
-            }
-            else if (modifier instanceof GlobalDeckModifier globalModifier)
-            {
-                List<String> affectedCards = new ArrayList<>();
-                affectedCards.addAll(globalModifier.getConfig().requiredColors.stream()
-                    .map(Enum::name)
-                    .map(s -> s.substring(0, 1).toUpperCase() + s.substring(1).toLowerCase())
-                    .toList());
-                affectedCards.addAll(globalModifier.getConfig().requiredGroups.stream()
-                    .map(s -> s.substring(0, 1).toUpperCase() + s.substring(1).toLowerCase())
-                    .toList());
+            String target = affectedCards.isEmpty() ? "all" : String.join(", ", affectedCards);
+            return String.format("+%.0f%% efficiency to %s cards", value * 100f, target);
+        }
+        else if (modifier instanceof BountyDeckModifier bountyModifier)
+        {
+            int tierIncrease = (int) Math.ceil(bountyModifier.getTierIncrease());
+            CompoundTag nbt = modifier.writeNbt().orElse(new CompoundTag());
+            int resourcesNeeded = nbt.getInt("resourcesNeeded");
+            return String.format("+%d Crate %s Completing a vault with at least %d Resource %s",
+                tierIncrease, tierIncrease == 1 ? "Tier" : "Tiers",
+                resourcesNeeded, resourcesNeeded == 1 ? "Card" : "Cards");
+        }
+        else if (modifier instanceof SlotDeckModifier slotModifier)
+        {
+            CompoundTag nbt = modifier.writeNbt().orElse(new CompoundTag());
+            int slotRoll = nbt.getInt("slotRoll");
 
-                String target = affectedCards.isEmpty() ? "all" : String.join(", ", affectedCards);
-                builder.append(String.format("+%.0f%% efficiency to %s cards", value * 100f, target)).append("\n");
-            }
-            else if (modifier instanceof BountyDeckModifier bountyModifier)
-            {
-                int tierIncrease = (int) Math.ceil(bountyModifier.getTierIncrease());
-                CompoundTag nbt = modifier.writeNbt().orElse(new CompoundTag());
-                int resourcesNeeded = nbt.getInt("resourcesNeeded");
-                builder.append(String.format("+%d Crate %s Completing a vault with at least %d Resource %s",
-                    tierIncrease, tierIncrease == 1 ? "Tier" : "Tiers",
-                    resourcesNeeded, resourcesNeeded == 1 ? "Card" : "Cards")).append("\n");
-            }
-            else if (modifier instanceof SlotDeckModifier slotModifier)
-            {
-                CompoundTag nbt = modifier.writeNbt().orElse(new CompoundTag());
-                int slotRoll = nbt.getInt("slotRoll");
+            List<String> affectedCards = new ArrayList<>();
+            affectedCards.addAll(slotModifier.getConfig()
+                .getRequiredColors(slotModifier.getConfig().getSelectedRollId()).stream()
+                .map(Enum::name)
+                .map(s -> s.substring(0, 1).toUpperCase() + s.substring(1).toLowerCase())
+                .toList());
+            affectedCards.addAll(slotModifier.getConfig()
+                .getRequiredGroups(slotModifier.getConfig().getSelectedRollId()).stream()
+                .map(s -> s.substring(0, 1).toUpperCase() + s.substring(1).toLowerCase())
+                .toList());
 
-                List<String> affectedCards = new ArrayList<>();
-                affectedCards.addAll(slotModifier.getConfig()
-                    .getRequiredColors(slotModifier.getConfig().getSelectedRollId()).stream()
-                    .map(Enum::name)
-                    .map(s -> s.substring(0, 1).toUpperCase() + s.substring(1).toLowerCase())
-                    .toList());
-                affectedCards.addAll(slotModifier.getConfig()
-                    .getRequiredGroups(slotModifier.getConfig().getSelectedRollId()).stream()
-                    .map(s -> s.substring(0, 1).toUpperCase() + s.substring(1).toLowerCase())
-                    .toList());
+            String target = affectedCards.isEmpty() ? "all cards" : String.join(", ", affectedCards);
+            return String.format("+%.0f%% efficiency for %d %s %s",
+                value * 100f, slotRoll, target, slotRoll == 1 ? "card" : "cards");
+        }
 
-                String target = affectedCards.isEmpty() ? "all cards" : String.join(", ", affectedCards);
-                builder.append(String.format("+%.0f%% efficiency for %d %s %s",
-                    value * 100f, slotRoll, target, slotRoll == 1 ? "card" : "cards")).append("\n");
-            }
-        });
+        return null;
     }
 
 
