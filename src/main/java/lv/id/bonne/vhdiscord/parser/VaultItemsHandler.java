@@ -995,8 +995,8 @@ public class VaultItemsHandler
     public static void handleDeckSocketTooltip(StringBuilder builder, ItemStack itemStack)
     {
         DeckSocketItem.getDeckModifier(itemStack).
-            map(VaultItemsHandler::describeDeckModifier).
-            ifPresent(text -> builder.append(text).append("\n"));
+            map(DeckTooltips::modifierLines).
+            ifPresent(lines -> lines.forEach(line -> builder.append(line.getString()).append("\n")));
     }
 
 
@@ -1783,33 +1783,48 @@ public class VaultItemsHandler
                 builder.append("\n");
             }
 
-            int socketCount = deck.getSocketCount();
-
-            if (socketCount > 0)
-            {
-                int filledSockets = deck.getModifiers().size();
-                int emptySockets = socketCount - filledSockets;
-
-                builder.append("**Sockets:** ").
-                    append(createDots(filledSockets, "\u2B22")).
-                    append(createDots(emptySockets, "\u2B21")).
-                    append("\n");
-
-                if (filledSockets > 0)
-                {
-                    builder.append("**Modifiers:**\n");
-
-                    for (DeckModifier<?> modifier : deck.getModifiers())
-                    {
-                        String name = modifier.getName();
-
-                        builder.append(" ").append(DOT).append(" ").
-                            append(name != null ? name : "Unknown").
-                            append("\n");
-                    }
-                }
-            }
+            VaultItemsHandler.appendDeckSockets(builder, DeckTooltips.deckLines(deck));
         });
+    }
+
+
+    /**
+     * This method appends the sockets and what the deck's modifiers do, from the game's own deck tooltip: it ends with
+     * the sockets line (which counts only the sockets cores fill, as the pack decides) and one line per modifier effect.
+     * @param builder Builder that contains the description.
+     * @param deckLines The deck's tooltip lines.
+     */
+    private static void appendDeckSockets(StringBuilder builder, List<Component> deckLines)
+    {
+        List<String> lines = deckLines.stream().map(Component::getString).map(String::strip).toList();
+        int socketsLine = -1;
+
+        for (int index = 0; index < lines.size(); index++)
+        {
+            if (lines.get(index).startsWith(SOCKETS_PREFIX))
+            {
+                socketsLine = index;
+            }
+        }
+
+        if (socketsLine < 0)
+        {
+            return;
+        }
+
+        builder.append("**Sockets:** ").
+            append(lines.get(socketsLine).substring(SOCKETS_PREFIX.length()).replace(" ", "")).
+            append("\n");
+
+        List<String> effects = lines.subList(socketsLine + 1, lines.size()).stream().
+            filter(line -> !line.isEmpty()).
+            toList();
+
+        if (!effects.isEmpty())
+        {
+            builder.append("**Modifiers:**\n");
+            effects.forEach(effect -> builder.append(" ").append(DOT).append(" ").append(effect).append("\n"));
+        }
     }
 
 
@@ -2519,6 +2534,11 @@ public class VaultItemsHandler
      * Symbol for text fields.
      */
     private static final String DOT = "\u2022";
+
+    /**
+     * How the game's deck tooltip starts its sockets line.
+     */
+    private static final String SOCKETS_PREFIX = "Sockets:";
 
     /**
      * Variable format for numbers.

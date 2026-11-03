@@ -32,7 +32,7 @@ Four mixin JSON files in `src/main/resources/`:
 - `mixins.vhdiscord.dcintegration.json` - 8 mixins, conditional on dcintegration mod
 - `mixins.vhdiscord.mc2discord.json` - 2 mixins, conditional on mc2discord (excludes v3.x)
 - `mixins.vhdiscord.sdlink.json` - 8 mixins, conditional on sdlink mod
-- `mixins.vhdiscord.vaulthunters.json` - 4 accessor/invoker mixins, always loaded
+- `mixins.vhdiscord.vaulthunters.json` - always loaded: 4 accessor/invoker mixins, plus `MixinCardDeck`, `MixinDeckModifier` and `MixinDeckModifierShiftKey`, which let VH's client-side deck tooltip (and Wold's Vaults' deck modifiers, `@Pseudo`) run on a dedicated server for `parser/DeckTooltips`. A new deck modifier class that asks `Screen.hasShiftDown()` belongs in `MixinDeckModifierShiftKey`; until then it is written by name.
 
 ### Key File: VaultItemsHandler.java
 

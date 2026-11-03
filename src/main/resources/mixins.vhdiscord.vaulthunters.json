@@ -8,6 +8,9 @@
     "GearCardModifierAccessor",
     "GearModificationItemAccessor",
     "ReforgeTagModificationFocusInvoker",
-    "CardEntryAccessor"
+    "CardEntryAccessor",
+    "MixinCardDeck",
+    "MixinDeckModifier",
+    "MixinDeckModifierShiftKey"
   ]
 }

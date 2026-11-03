@@ -8,7 +8,6 @@ package lv.id.bonne.vhdiscord.masuchatlink;
 
 
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -20,33 +19,30 @@ import iskallia.vault.core.card.Card;
 import iskallia.vault.core.card.CardDeck;
 import iskallia.vault.core.card.CardEntry;
 import iskallia.vault.core.card.CardPos;
-import iskallia.vault.core.card.CardTooltipContext;
-import iskallia.vault.core.card.modifier.card.TaskLootCardModifier;
-import iskallia.vault.core.card.modifier.deck.DeckModifier;
-import iskallia.vault.gear.attribute.VaultGearAttributeInstance;
-import iskallia.vault.gear.attribute.VaultGearModifier;
 import iskallia.vault.item.CardDeckItem;
-import lv.id.bonne.vhdiscord.parser.VaultItemsHandler;
+import lv.id.bonne.vhdiscord.parser.DeckTooltips;
 import net.minecraft.network.chat.Component;
-import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.network.chat.Style;
 import net.minecraft.network.chat.TextColor;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.TooltipFlag;
 
 
 /**
  * Builds a card deck's picture for MasuChatLink: the deck screen (each slot of its layout with the card's face and icon,
- * named as VH's own card models) and the stats under it (attributes, sockets and what the cores do). Uses only the deck's
- * data; VH's deck tooltip and card renderer are client-only.
+ * named as VH's own card models) and the stats under it, written by VH's own deck tooltip on the server (see
+ * {@link DeckTooltips}).
  */
 public final class DeckPicture
 {
     private static final String WHITE = "#FFFFFF";
 
-    private static final String YELLOW = "#FFFF55";
+    private static final String FILLED_SOCKET = "\u2B22";
 
-    private static final String GRAY = "#AAAAAA";
+    private static final String EMPTY_SOCKET = "\u2B21";
+
+    private static final String FILLED_SOCKET_DOT = "\u25CF";
+
+    private static final String EMPTY_SOCKET_DOT = "\u25CB";
 
     private static final String ITEM_MODEL_PREFIX = "the_vault:";
 
@@ -256,102 +252,20 @@ public final class DeckPicture
 
 
     /**
-     * The deck's stats in the game's colours: attributes, sockets and what each core does.
+     * The deck's stats as the game's deck tooltip writes them: attributes, resource card rewards, sockets and what each
+     * modifier does.
      *
      * @param deck the deck.
      * @return the lines.
      */
-    @SuppressWarnings({"rawtypes", "unchecked"})
     private static List<List<TooltipSegment>> statsLines(CardDeck deck)
     {
         List<List<TooltipSegment>> lines = new ArrayList<>();
 
-        for (VaultGearAttributeInstance instance : deck.getSnapshotAttributes())
+        for (Component line : DeckTooltips.deckLines(deck))
         {
-            MutableComponent text = instance.getAttribute().getReader().getDisplay(instance, VaultGearModifier.AffixType.PREFIX);
-
-            if (text != null)
-            {
-                lines.add(DeckPicture.segmentsOf(text));
-            }
+            lines.add(DeckPicture.segmentsOf(line));
         }
-
-        for (Component text : DeckPicture.resourceLines(deck))
-        {
-            lines.add(DeckPicture.segmentsOf(text));
-        }
-
-        int socketCount = deck.getSocketCount();
-
-        if (socketCount > 0)
-        {
-            int filled = deck.getModifiers().size();
-            List<TooltipSegment> sockets = new ArrayList<>();
-            sockets.add(new TooltipSegment("Sockets: ", WHITE, false, false));
-            sockets.add(new TooltipSegment("● ".repeat(filled).strip(), YELLOW, false, false));
-
-            if (socketCount > filled)
-            {
-                sockets.add(new TooltipSegment((filled > 0 ? " " : "") + "○ ".repeat(socketCount - filled).strip(), GRAY, false, false));
-            }
-
-            lines.add(List.of());
-            lines.add(sockets);
-        }
-
-        List<List<TooltipSegment>> cores = new ArrayList<>();
-
-        for (DeckModifier<?> modifier : deck.getModifiers())
-        {
-            String description = VaultItemsHandler.describeDeckModifier(modifier);
-
-            if (description != null)
-            {
-                cores.add(List.of(new TooltipSegment(description, WHITE, false, false)));
-            }
-        }
-
-        if (!cores.isEmpty())
-        {
-            lines.add(List.of());
-            lines.addAll(cores);
-        }
-
-        return lines;
-    }
-
-
-    /**
-     * What the deck's resource cards earn, written by VH's own card modifier as the game's deck tooltip does (cards by name,
-     * each inside its deck context so requirement modifiers apply).
-     *
-     * @param deck the deck.
-     * @return the lines.
-     */
-    private static List<Component> resourceLines(CardDeck deck)
-    {
-        List<Component> lines = new ArrayList<>();
-        deck.getCards().entrySet().stream().
-            filter(entry -> entry.getValue() != null).
-            sorted(Comparator.comparing(
-                entry -> Optional.ofNullable(entry.getValue().getFirstName()).map(Component::getString).orElse(""),
-                String.CASE_INSENSITIVE_ORDER)).
-            forEachOrdered(entry ->
-            {
-                Card card = entry.getValue();
-
-                for (CardEntry cardEntry : card.getEntries())
-                {
-                    if (cardEntry.getModifier() instanceof TaskLootCardModifier modifier)
-                    {
-                        CardTooltipContext.with(deck, entry.getKey(), card, () ->
-                        {
-                            modifier.addText(lines, 0, TooltipFlag.Default.NORMAL, 0f, card.getTier());
-                            return null;
-                        });
-                    }
-                }
-            });
 
         return lines;
     }
@@ -370,6 +284,7 @@ public final class DeckPicture
         {
             if (!text.isEmpty())
             {
+                text = text.replace(FILLED_SOCKET, FILLED_SOCKET_DOT).replace(EMPTY_SOCKET, EMPTY_SOCKET_DOT);
                 TextColor colour = style.getColor();
                 String hex = colour == null ? WHITE : String.format("#%06X", colour.getValue() & 0xFFFFFF);
                 int last = segments.size() - 1;
@@ -388,6 +303,14 @@ public final class DeckPicture
 
             return Optional.empty();
         }, Style.EMPTY);
+
+        int last = segments.size() - 1;
+
+        if (last >= 0)
+        {
+            TooltipSegment trailing = segments.get(last);
+            segments.set(last, new TooltipSegment(trailing.text().stripTrailing(), trailing.color(), trailing.bold(), trailing.italic()));
+        }
 
         return segments;
     }
