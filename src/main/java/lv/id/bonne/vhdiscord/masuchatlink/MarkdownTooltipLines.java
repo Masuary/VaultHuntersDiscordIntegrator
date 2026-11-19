@@ -21,7 +21,7 @@ import lv.id.bonne.vhdiscord.parser.TooltipColorHints;
 
 /**
  * Turns the Discord markdown {@code VaultItemsHandler} writes into tooltip lines for MasuChatLink's in-game picture:
- * {@code **Label:** value} lines read as a grey label and a white value, a whole {@code **bold**} line stays bold, gear
+ * a line noted exactly as the game styled it keeps those styles, {@code **Label:** value} lines read as a grey label and a white value, a whole {@code **bold**} line stays bold, gear
  * modifier lines take the colour noted while they were built, and tier details in brackets turn grey.
  */
 public final class MarkdownTooltipLines
@@ -121,6 +121,15 @@ public final class MarkdownTooltipLines
         if (line.isBlank())
         {
             return List.of();
+        }
+
+        List<TooltipColorHints.Run> recorded = hints.lines().get(MarkdownTooltipLines.plain(line).strip());
+
+        if (recorded != null && !recorded.isEmpty())
+        {
+            List<TooltipSegment> segments = new ArrayList<>();
+            recorded.forEach(run -> MarkdownTooltipLines.appendMerged(segments, MarkdownTooltipLines.segmentOf(run.text(), run)));
+            return segments;
         }
 
         Matcher labelled = LABELLED.matcher(line);

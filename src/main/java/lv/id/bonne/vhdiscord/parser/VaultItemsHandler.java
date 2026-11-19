@@ -10,7 +10,11 @@ package lv.id.bonne.vhdiscord.parser;
 import com.google.gson.JsonObject;
 import java.text.DecimalFormat;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Predicate;
+
+import com.mojang.logging.LogUtils;
+import org.slf4j.Logger;
 
 import iskallia.vault.antique.Antique;
 import iskallia.vault.config.AntiquesConfig;
@@ -53,6 +57,7 @@ import iskallia.vault.init.*;
 import iskallia.vault.item.*;
 import iskallia.vault.item.bottle.BottleItem;
 import iskallia.vault.item.crystal.CrystalData;
+import iskallia.vault.item.crystal.CrystalEntry;
 import iskallia.vault.item.crystal.VaultCrystalItem;
 import iskallia.vault.item.crystal.layout.*;
 import iskallia.vault.item.crystal.layout.preset.ParadoxTemplatePreset;
@@ -755,6 +760,115 @@ public class VaultItemsHandler
      */
     public static void handleVaultCrystalTooltip(StringBuilder builder, CrystalData crystalData)
     {
+        List<Component> gameLines = VaultItemsHandler.crystalGameLines(crystalData);
+
+        if (gameLines == null)
+        {
+            VaultItemsHandler.appendCrystalSummary(builder, crystalData);
+        }
+        else
+        {
+            gameLines.forEach(line -> VaultItemsHandler.appendGameLine(builder, line));
+        }
+
+        // Modifiers
+        VaultItemsHandler.parseModifiers(builder, crystalData.getModifiers());
+    }
+
+
+    /**
+     * The crystal's objective, theme, layout, time and properties lines exactly as Vault Hunters writes them in game, in
+     * the game's order (level and capacity first). These parts build their text without client classes, unlike the
+     * crystal's modifiers, hazards and sigil, so they run on a dedicated server too.
+     *
+     * @param crystalData Vault Crystal Data.
+     * @return the lines, or null when a part could not build its text on the server.
+     */
+    private static List<Component> crystalGameLines(CrystalData crystalData)
+    {
+        int level = crystalData.getProperties().getLevel().orElse(0);
+        List<Component> lines = new ArrayList<>();
+        List<CrystalEntry> parts = List.of(crystalData.getObjective(),
+            crystalData.getTheme(),
+            crystalData.getLayout(),
+            crystalData.getTime(),
+            crystalData.getProperties());
+
+        for (CrystalEntry part : parts)
+        {
+            try
+            {
+                part.addText(lines, 0, TooltipFlag.Default.NORMAL, 0.0F, level);
+            }
+            catch (RuntimeException | LinkageError failure)
+            {
+                if (CRYSTAL_TEXT_FAILURES.add(part.getClass().getName()))
+                {
+                    LOGGER.warn("{} cannot write its crystal tooltip on the server; crystals with it use the summary text",
+                        part.getClass().getName(), failure);
+                }
+
+                return null;
+            }
+        }
+
+        return lines;
+    }
+
+
+    /**
+     * Writes one game tooltip line as markdown ({@code **Label:** value}, or the whole line bold when it has no label)
+     * and notes its styled runs, so the in-game picture draws it in the game's colours.
+     *
+     * @param builder Embed Builder.
+     * @param line the game's line.
+     */
+    private static void appendGameLine(StringBuilder builder, Component line)
+    {
+        String text = line.getString().strip();
+        int separator = text.indexOf(": ");
+
+        if (separator > 0)
+        {
+            VaultItemsHandler.appendStyledLine(builder,
+                "**" + text.substring(0, separator) + ":** " + text.substring(separator + 2),
+                line);
+        }
+        else if (text.isEmpty())
+        {
+            builder.append("\n");
+        }
+        else
+        {
+            VaultItemsHandler.appendStyledLine(builder, "**" + text + "**", line);
+        }
+    }
+
+
+    /**
+     * Writes a markdown line and notes the styled runs of the game's line it stands for, so the in-game picture draws
+     * that line in the game's colours instead of reading the markdown.
+     *
+     * @param builder Embed Builder.
+     * @param markdown the line as markdown.
+     * @param line the game's line.
+     */
+    private static void appendStyledLine(StringBuilder builder, String markdown, Component line)
+    {
+        builder.append(markdown).append("\n");
+        TooltipColorHints.record(markdown.replace("**", "").strip(), line);
+    }
+
+
+    /**
+     * The crystal summary this handler wrote before it used the game's own lines; kept for crystal parts that cannot
+     * build their text on a server.
+     *
+     * @param builder Embed Builder.
+     * @param crystalData Vault Crystal Data.
+     */
+    private static void appendCrystalSummary(StringBuilder builder, CrystalData crystalData)
+    {
         // Objective
         addObjectiveName(builder, crystalData.getObjective());
 
@@ -809,9 +923,6 @@ public class VaultItemsHandler
         {
             builder.append("**Unmodifiable**").append("\n");
         }
-
-        // Modifiers
-        VaultItemsHandler.parseModifiers(builder, crystalData.getModifiers());
     }
 
 
@@ -1348,6 +1459,13 @@ public class VaultItemsHandler
     }
 
 
+    /**
+     * Writes a companion's tooltip as the game draws it. Vault Hunters builds the series, temporal modifier and relic
+     * lines on the client only, so they are rebuilt here with the same text and styles.
+     *
+     * @param builder Embed Builder.
+     * @param itemStack the companion.
+     */
     @SuppressWarnings({"rawtypes", "unchecked"})
     public static void handleCompanionTooltip(StringBuilder builder, ItemStack itemStack)
     {
@@ -1359,36 +1477,21 @@ public class VaultItemsHandler
         }
 
         int level = tag.contains("level") ? tag.getInt("level") : 1;
-        builder.append("**Level:** ").append(level).append("\n");
+        VaultItemsHandler.appendGameLine(builder, new TextComponent("Level: ").
+            append(new TextComponent(String.valueOf(level)).withStyle(Style.EMPTY.withColor(LEVEL_COLOUR))));
 
         int hearts = tag.contains("hearts") ? tag.getInt("hearts") : 1;
 
         if (hearts > 0)
         {
-            builder.append("**Health:** ").append("\u2764".repeat(hearts)).append("\n");
+            VaultItemsHandler.appendGameLine(builder, new TextComponent("Health: ").
+                append(new TextComponent("\u2764".repeat(hearts)).withStyle(ChatFormatting.RED)));
+            VaultItemsHandler.appendGameLine(builder, VaultItemsHandler.companionCooldownLine(tag));
         }
         else
         {
-            builder.append("**Health:** Retired\n");
-        }
-
-        int cooldownSeconds = 0;
-
-        if (tag.contains("cooldownExpiry"))
-        {
-            long now = System.currentTimeMillis();
-            long expiry = tag.getLong("cooldownExpiry");
-            cooldownSeconds = (int) Math.max(0L, (expiry - now) / 1000L);
-        }
-
-        if (cooldownSeconds <= 0)
-        {
-            builder.append("**Cooldown:** Ready!\n");
-        }
-        else
-        {
-            long remainingTicks = cooldownSeconds * 20L;
-            builder.append("**Cooldown:** ").append(VaultItemsHandler.formatTimeString(remainingTicks)).append("\n");
+            VaultItemsHandler.appendGameLine(builder, new TextComponent("Health: ").
+                append(new TextComponent("Retired").withStyle(ChatFormatting.GRAY)));
         }
 
         String seriesRaw = tag.getString("PetSeries");
@@ -1396,8 +1499,11 @@ public class VaultItemsHandler
         if (!seriesRaw.isEmpty())
         {
             String seriesDisplay = seriesRaw.substring(0, 1).toUpperCase() + seriesRaw.substring(1).toLowerCase();
-            builder.append("**Series:** ").append(seriesDisplay).append("\n");
+            VaultItemsHandler.appendGameLine(builder, new TextComponent("Series: ").
+                append(new TextComponent(seriesDisplay).withStyle(Style.EMPTY.withColor(LEVEL_COLOUR))));
         }
+
+        builder.append("\n");
 
         if (tag.contains("temporal"))
         {
@@ -1407,8 +1513,10 @@ public class VaultItemsHandler
             {
                 VaultModifierRegistry.getOpt(modifierId).ifPresent(vaultModifier ->
                 {
-                    builder.append("\n**Temporal Modifier**\n");
-                    builder.append(DOT).append(" ").append(vaultModifier.getDisplayName()).append("\n");
+                    VaultItemsHandler.appendStyledLine(builder,
+                        "**Temporal Modifier**",
+                        new TextComponent("Temporal Modifier").withStyle(ChatFormatting.AQUA));
+                    VaultItemsHandler.appendModifierLine(builder, vaultModifier, vaultModifier.getDisplayName(), 1);
                 });
             }
         }
@@ -1437,23 +1545,70 @@ public class VaultItemsHandler
 
             if (!modifierCounts.isEmpty())
             {
-                builder.append("\n**Relics**\n");
+                VaultItemsHandler.appendStyledLine(builder,
+                    "**Relics**",
+                    new TextComponent("Relics").withStyle(ChatFormatting.GREEN));
 
                 modifierCounts.forEach((id, count) ->
                     VaultModifierRegistry.getOpt(id).ifPresent(vaultModifier ->
-                    {
-                        if (count > 1)
-                        {
-                            builder.append(DOT).append(" ").append(count).append("x ")
-                                .append(vaultModifier.getDisplayName()).append("\n");
-                        }
-                        else
-                        {
-                            builder.append(DOT).append(" ").append(vaultModifier.getDisplayName()).append("\n");
-                        }
-                    }));
+                        VaultItemsHandler.appendModifierLine(builder,
+                            vaultModifier,
+                            vaultModifier.getDisplayNameFormatted(count),
+                            count)));
             }
         }
+    }
+
+
+    /**
+     * The companion's cooldown line: ready in green, else the time left in red.
+     *
+     * @param tag the companion's tag.
+     * @return the line.
+     */
+    private static Component companionCooldownLine(CompoundTag tag)
+    {
+        int cooldownSeconds = 0;
+
+        if (tag.contains("cooldownExpiry"))
+        {
+            long now = System.currentTimeMillis();
+            long expiry = tag.getLong("cooldownExpiry");
+            cooldownSeconds = (int) Math.max(0L, (expiry - now) / 1000L);
+        }
+
+        if (cooldownSeconds <= 0)
+        {
+            return new TextComponent("Cooldown: ").append(new TextComponent("Ready!").withStyle(ChatFormatting.GREEN));
+        }
+
+        String remaining = VaultItemsHandler.formatTimeString(cooldownSeconds * 20L);
+        return new TextComponent("Cooldown: ").append(new TextComponent(remaining).withStyle(ChatFormatting.RED));
+    }
+
+
+    /**
+     * One companion modifier line as the game draws it: indented, a grey count when stacked, the name in the
+     * modifier's colour.
+     *
+     * @param builder Embed Builder.
+     * @param vaultModifier the modifier.
+     * @param displayName the name the game shows for it there.
+     * @param count how many times the companion has it.
+     */
+    private static void appendModifierLine(StringBuilder builder, VaultModifier<?> vaultModifier, String displayName, int count)
+    {
+        MutableComponent name = new TextComponent(displayName).
+            withStyle(Style.EMPTY.withColor(vaultModifier.getDisplayTextColor()));
+        MutableComponent line = new TextComponent("  ");
+
+        if (count > 1)
+        {
+            line.append(new TextComponent(count + "x ").withStyle(ChatFormatting.GRAY));
+        }
+
+        line.append(name);
+        VaultItemsHandler.appendStyledLine(builder, DOT + " " + line.getString().strip(), line);
     }
 
 
@@ -1637,25 +1792,15 @@ public class VaultItemsHandler
     {
         Card card = CardItem.getCard(itemStack);
 
-        builder.append("**Tier:** ").append(card.getTier()).append("\n");
+        VaultItemsHandler.appendGameLine(builder, new TextComponent("Tier: ").
+            append(new TextComponent(String.valueOf(card.getTier())).withStyle(Style.EMPTY.withColor(LEVEL_COLOUR))));
 
         List<CardEntry.Color> colors = new ArrayList<>(card.getColors());
 
         if (!colors.isEmpty())
         {
-            builder.append("**Color:** ");
-
-            for (int i = 0; i < colors.size(); ++i)
-            {
-                builder.append(colors.get(i).getColoredText().getString());
-
-                if (i != colors.size() - 1)
-                {
-                    builder.append(", ");
-                }
-            }
-
-            builder.append("\n");
+            VaultItemsHandler.appendGameLine(builder, new TextComponent("Color: ").
+                append(VaultItemsHandler.joinedCardList(colors.stream().map(CardEntry.Color::getColoredText).toList())));
         }
 
         List<String> groups = new ArrayList<>(card.getGroups());
@@ -1671,36 +1816,14 @@ public class VaultItemsHandler
 
         if (!types.isEmpty())
         {
-            builder.append("**Type:** ");
-
-            for (int i = 0; i < types.size(); ++i)
-            {
-                builder.append(types.get(i));
-
-                if (i != types.size() - 1)
-                {
-                    builder.append(", ");
-                }
-            }
-
-            builder.append("\n");
+            VaultItemsHandler.appendGameLine(builder, new TextComponent("Type: ").
+                append(VaultItemsHandler.joinedCardList(VaultItemsHandler.cardGroupTexts(types))));
         }
 
         if (!groups.isEmpty())
         {
-            builder.append("**Groups:** ");
-
-            for (int i = 0; i < groups.size(); ++i)
-            {
-                builder.append(groups.get(i));
-
-                if (i != groups.size() - 1)
-                {
-                    builder.append(", ");
-                }
-            }
-
-            builder.append("\n");
+            VaultItemsHandler.appendGameLine(builder, new TextComponent("Groups: ").
+                append(VaultItemsHandler.joinedCardList(VaultItemsHandler.cardGroupTexts(groups))));
         }
 
         for (CardEntry entry : card.getEntries())
@@ -1719,6 +1842,44 @@ public class VaultItemsHandler
                 addCardProperty(builder, condition, card.getTier());
             }
         }
+    }
+
+
+    /**
+     * Card types and groups as the game's card tooltip draws them.
+     *
+     * @param names the type or group names.
+     * @return one component per name.
+     */
+    private static List<Component> cardGroupTexts(List<String> names)
+    {
+        return names.stream().
+            map(name -> (Component) new TextComponent(name).withStyle(Style.EMPTY.withColor(CARD_GROUP_COLOUR))).
+            toList();
+    }
+
+
+    /**
+     * Joins card tooltip values with the game's grey commas.
+     *
+     * @param parts the values.
+     * @return the joined component.
+     */
+    private static Component joinedCardList(List<Component> parts)
+    {
+        TextComponent joined = new TextComponent("");
+
+        for (int i = 0; i < parts.size(); ++i)
+        {
+            joined.append(parts.get(i));
+
+            if (i != parts.size() - 1)
+            {
+                joined.append(new TextComponent(", ").withStyle(ChatFormatting.GRAY));
+            }
+        }
+
+        return joined;
     }
 
 
@@ -1845,8 +2006,7 @@ public class VaultItemsHandler
                 VaultGearAttributeInstance instance = new VaultGearAttributeInstance(modifier.getAttribute(), value);
                 MutableComponent name =
                     modifier.getAttribute().getReader().getDisplay(instance, VaultGearModifier.AffixType.PREFIX);
-
-                builder.append(name.getString()).append(" (");
+                MutableComponent ranges = new TextComponent("");
 
                 List<Object> configs = modifier.getConfig().getPool().keySet().stream().
                     map(i -> modifier.getConfig().getConfig(i)).
@@ -1861,7 +2021,7 @@ public class VaultItemsHandler
 
                 if (minMaxRangeCmp != null)
                 {
-                    builder.append(minMaxRangeCmp.getString()).append(",").append(" ");
+                    ranges.append(minMaxRangeCmp).append(", ");
                 }
 
                 MutableComponent rangeCmp = uncheckedGetConfigRangeDisplay(
@@ -1873,11 +2033,13 @@ public class VaultItemsHandler
                 {
                     if (rangeCmp != null)
                     {
-                        builder.append("T%s: ".formatted(t)).append(rangeCmp.getString());
+                        ranges.append("T%s: ".formatted(t)).append(rangeCmp);
                     }
                 });
 
-                builder.append(")").append("\n");
+                MutableComponent line = name.copy().
+                    append(new TextComponent(" (").withStyle(ChatFormatting.GRAY).append(ranges).append(")"));
+                VaultItemsHandler.appendStyledLine(builder, line.getString(), line);
             });
         }
         else
@@ -1885,7 +2047,7 @@ public class VaultItemsHandler
             List<Component> components = new ArrayList<>();
             property.addText(components, 0, TooltipFlag.Default.ADVANCED, 0f, tier);
 
-            components.forEach(component -> builder.append(component.getString()).append("\n"));
+            components.forEach(component -> VaultItemsHandler.appendStyledLine(builder, component.getString(), component));
         }
     }
 
@@ -2259,7 +2421,7 @@ public class VaultItemsHandler
      */
     private static void addLayoutName(StringBuilder builder, CrystalLayout layout)
     {
-        builder.append("**Layout**: ");
+        builder.append("**Layout:** ");
 
         String type = CrystalData.LAYOUT.getType(layout);
 
@@ -2517,6 +2679,18 @@ public class VaultItemsHandler
     private static final int CRAFTER_COLOUR = 0xFFE400;
 
     private static final int SLOT_COLOUR = 0xE2E28A;
+
+    /**
+     * The colour the game's card tooltip gives types and groups.
+     */
+    private static final int CARD_GROUP_COLOUR = 0xCCCCCC;
+
+    private static final Logger LOGGER = LogUtils.getLogger();
+
+    /**
+     * Crystal part classes whose tooltip text failed on the server, so each is logged once.
+     */
+    private static final Set<String> CRYSTAL_TEXT_FAILURES = ConcurrentHashMap.newKeySet();
 
     private static final int DURABILITY_COLOUR = 0xAAAAAA;
 
