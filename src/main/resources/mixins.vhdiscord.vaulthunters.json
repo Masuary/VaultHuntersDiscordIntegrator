@@ -6,8 +6,6 @@
   "plugin": "lv.id.bonne.vhdiscord.vaulthunters.VaultHuntersModConfiguration",
   "server": [
     "GearCardModifierAccessor",
-    "GearModificationItemAccessor",
-    "ReforgeTagModificationFocusInvoker",
     "CardEntryAccessor",
     "MixinCardDeck",
     "MixinDeckModifier",

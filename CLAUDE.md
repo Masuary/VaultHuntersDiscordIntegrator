@@ -32,7 +32,7 @@ Four mixin JSON files in `src/main/resources/`:
 - `mixins.vhdiscord.dcintegration.json` - 8 mixins, conditional on dcintegration mod
 - `mixins.vhdiscord.mc2discord.json` - 2 mixins, conditional on mc2discord (excludes v3.x)
 - `mixins.vhdiscord.sdlink.json` - 8 mixins, conditional on sdlink mod
-- `mixins.vhdiscord.vaulthunters.json` - always loaded: 4 accessor/invoker mixins, plus `MixinCardDeck`, `MixinDeckModifier` and `MixinDeckModifierShiftKey`, which let VH's client-side deck tooltip (and Wold's Vaults' deck modifiers, `@Pseudo`) run on a dedicated server for `parser/DeckTooltips`. A new deck modifier class that asks `Screen.hasShiftDown()` belongs in `MixinDeckModifierShiftKey`; until then it is written by name.
+- `mixins.vhdiscord.vaulthunters.json` - always loaded: 2 accessor mixins, plus `MixinCardDeck`, `MixinDeckModifier` and `MixinDeckModifierShiftKey`, which let VH's client-side deck tooltip (and Wold's Vaults' deck modifiers, `@Pseudo`) run on a dedicated server for `parser/DeckTooltips`. A new deck modifier class that asks `Screen.hasShiftDown()` belongs in `MixinDeckModifierShiftKey`; until then it is written by name.
 
 ### Key File: VaultItemsHandler.java
 
@@ -41,7 +41,10 @@ Central tooltip parser in `parser/VaultItemsHandler.java`. Handles all VH item t
 When adding support for a new item type:
 1. Add an `instanceof` check in `generateVaultHuntersItemTooltips()`
 2. Create a `handle<ItemType>Tooltip(StringBuilder, ItemStack)` method
-3. Use the existing formatting patterns (`DOT`, `STAR`, bold markdown, etc.)
+3. Write every line through `appendGameLine(builder, Component)` (`**Label:** value` markdown) or `appendStyledLine(builder, markdown, Component)`, never plain `builder.append`: they record the line's styled runs, and `MarkdownTooltipLines` draws a recorded line exactly in MasuChatLink's in-game picture. Unrecorded lines come out white.
+4. Prefer calling the game's own text code when it is server-safe (no `@OnlyIn(CLIENT)`, `Screen`, `Minecraft`, `ClientScheduler`, client data), guarded like `crystalGameLines` (fallback, logged once per class); otherwise rebuild the same Components with the colours from the decompiled game source.
+5. The mod runs on Vault Hunters Remastered (Skyvault) and Wold's Vaults: a Wold's-only layout is chosen with `ModList.get().isLoaded(WOLDS_VAULTS_MOD_ID)` and Wold's classes are only reached by reflection.
+6. Check a change with a throwaway server probe on the Wolds HUB test copy, never committed: `/mnt/data/AI/work/masuchatlink-crystal-tooltip-2026-11-19/run-probe.sh` with `round3/RealItemProbe.java` runs every item in the world's saved inventories through the listener's path; `stop-probe.sh` restores the server.
 
 ## Dependencies
 
