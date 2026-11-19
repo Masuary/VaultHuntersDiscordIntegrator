@@ -85,6 +85,7 @@ import iskallia.vault.item.InfusedCatalystItem;
 import iskallia.vault.item.ItemShardPouch;
 import iskallia.vault.item.VaultCatalystItem;
 import iskallia.vault.item.gear.EtchingItem;
+import iskallia.vault.item.gear.GreedTrinketItem;
 import iskallia.vault.item.gear.TrinketItem;
 import iskallia.vault.item.modification.GearModificationItem;
 import iskallia.vault.item.modification.ReforgeTagModificationFocus;
@@ -260,11 +261,6 @@ public class VaultItemsHandler
                 VaultItemsHandler.handleCompanionRelicTooltip(builder, itemStack);
                 return builder.toString();
             }
-            else if (itemStack.getItem() instanceof JewelItem)
-            {
-                VaultItemsHandler.handleJewelTooltip(builder, itemStack);
-                return builder.toString();
-            }
             else if (itemStack.getItem() instanceof SigilItem)
             {
                 VaultItemsHandler.handleSigilTooltip(builder, itemStack);
@@ -319,6 +315,7 @@ public class VaultItemsHandler
     {
         VaultGearData data = VaultGearData.read(itemStack);
         VaultGearState state = data.getState();
+        boolean jewel = itemStack.getItem() instanceof JewelItem;
 
         // Add unique item lore
         data.getFirstValue(ModGearAttributes.UNIQUE_ITEM_KEY).
@@ -354,6 +351,11 @@ public class VaultItemsHandler
             }
             case IDENTIFIED ->
             {
+                if (jewel)
+                {
+                    break;
+                }
+
                 builder.append("**Rarity:** ").append(data.getRarity().getDisplayName().getString()).append("\n");
                 TooltipColorHints.recordValue("Rarity", data.getRarity().getDisplayName());
             }
@@ -379,18 +381,18 @@ public class VaultItemsHandler
             int usedRepairs = data.getUsedRepairSlots();
             int totalRepairs = data.getRepairSlots();
 
-            if (totalRepairs > 0)
+            if (totalRepairs > 0 && !jewel)
             {
                 builder.append(VaultItemsHandler.createRepairText(usedRepairs, totalRepairs)).append("\n");
             }
 
             // Add Durability
-            if (VaultGearItem.of(itemStack).isBroken(itemStack))
+            if (!jewel && VaultGearItem.of(itemStack).isBroken(itemStack))
             {
                 builder.append("**Durability:** ").append("BROKEN").append("\n");
                 TooltipColorHints.recordValue("Durability", BROKEN_COLOUR);
             }
-            else if (itemStack.isDamageableItem() && itemStack.getMaxDamage() > 0)
+            else if (!jewel && itemStack.isDamageableItem() && itemStack.getMaxDamage() > 0)
             {
                 builder.append("**Durability:** ").append("%d/%d".formatted(
                     itemStack.getMaxDamage() - itemStack.getDamageValue(),
@@ -664,11 +666,8 @@ public class VaultItemsHandler
 
         if (data.getState() != VaultGearState.IDENTIFIED)
         {
-            builder.append("Unidentified Etching\n");
             return;
         }
-
-        builder.append("**Greed Tier:** ").append(data.getItemLevel()).append("\n");
 
         ResourceLocation etchingId = data.getAttributes(ModGearAttributes.ETCHING)
             .findFirst()
@@ -677,7 +676,9 @@ public class VaultItemsHandler
 
         if (etchingId == null)
         {
-            builder.append("No Etching Applied\n");
+            VaultItemsHandler.appendStyledLine(builder,
+                "No Etching Applied",
+                new TextComponent("No Etching Applied").withStyle(ChatFormatting.GRAY));
             return;
         }
 
@@ -685,16 +686,41 @@ public class VaultItemsHandler
 
         if (entry == null)
         {
-            builder.append("Unknown Etching\n");
+            VaultItemsHandler.appendStyledLine(builder,
+                "Unknown Etching",
+                new TextComponent("Unknown Etching").withStyle(ChatFormatting.RED));
             return;
         }
 
-        String description = EtchingHelper.formatDescription(
-            entry.getDescription(), EtchingHelper.getEtching(itemStack));
-        description = description.replaceAll("<[^>]+>", "");
-        builder.append(description).append("\n\n");
+        VaultItemsHandler.greedTierOf(data).ifPresent(greedTier ->
+            VaultItemsHandler.appendGameLine(builder, new TextComponent("Greed Tier: ").
+                append(new TextComponent(String.valueOf(greedTier)).withStyle(Style.EMPTY.withColor(LEVEL_COLOUR)))));
 
-        builder.append("**Type:** ").append(String.join(", ", entry.getTypeGroups())).append("\n");
+        Component description = TextUtil.applyColorTags(
+            EtchingHelper.formatDescription(entry.getDescription(), EtchingHelper.getEtching(itemStack)));
+        VaultItemsHandler.appendStyledLine(builder, description.getString(), description);
+        builder.append("\n");
+
+        VaultItemsHandler.appendGameLine(builder, new TextComponent("Type: ").withStyle(ChatFormatting.GRAY).
+            append(new TextComponent(String.join(", ", entry.getTypeGroups())).withStyle(ChatFormatting.WHITE)));
+    }
+
+
+    /**
+     * The greed tier an etching needs, read by its registry name: the attribute is newer than the Vault Hunters
+     * version this mod compiles against.
+     *
+     * @param data the etching's gear data.
+     * @return the tier, or empty when the etching has none.
+     */
+    private static Optional<Integer> greedTierOf(VaultGearData data)
+    {
+        return data.getAttributes().stream().
+            filter(instance -> GREED_TIER_ATTRIBUTE.equals(instance.getAttribute().getRegistryName())).
+            map(VaultGearAttributeInstance::getValue).
+            filter(Integer.class::isInstance).
+            map(Integer.class::cast).
+            findFirst();
     }
 
 
@@ -706,49 +732,60 @@ public class VaultItemsHandler
     public static void handleInscriptionTooltip(StringBuilder builder, ItemStack itemStack)
     {
         InscriptionData data = InscriptionData.from(itemStack);
-
         CompoundTag compoundTag = data.serializeNBT();
 
         if (compoundTag.contains("completion"))
         {
-            builder.append("**Completion:** ").
-                append(Math.round(compoundTag.getFloat("completion") * 100.0F)).
-                append("%").
-                append("\n");
+            VaultItemsHandler.appendGameLine(builder, new TextComponent("Completion: ").
+                append(new TextComponent(Math.round(compoundTag.getFloat("completion") * 100.0F) + "%").
+                    withStyle(Style.EMPTY.withColor(INSCRIPTION_COMPLETION_COLOUR))));
         }
 
-        if (compoundTag.contains("time"))
+        if (data.getTime() != null)
         {
-            builder.append("**Time:** ").
-                append(VaultItemsHandler.formatTimeString(compoundTag.getInt("time"))).
-                append("\n");
+            VaultItemsHandler.appendGameLine(builder, new TextComponent("Time: ").
+                append(new TextComponent(VaultItemsHandler.formatTimeString(data.getTime())).withStyle(ChatFormatting.GRAY)));
         }
 
         if (compoundTag.contains("instability"))
         {
-            builder.append("**Instability:** ").
-                append(Math.round(compoundTag.getInt("instability") * 100.0F)).
-                append("%").
-                append("\n");
+            VaultItemsHandler.appendGameLine(builder, new TextComponent("Instability: ").
+                append(new TextComponent("%.1f%%".formatted(compoundTag.getFloat("instability") * 100.0F)).
+                    withStyle(ChatFormatting.RED)));
         }
 
-        builder.append("**Size:** ").
-            append(compoundTag.getInt("size")).
-            append("\n");
+        if (!data.isSuper())
+        {
+            VaultItemsHandler.appendGameLine(builder, new TextComponent("Size: ").
+                append(new TextComponent(String.valueOf(data.getSize())).withStyle(ChatFormatting.RED)));
+        }
 
         for (InscriptionData.Entry entry : data.getEntries())
         {
             String roomStr = entry.count > 1 ? "Rooms" : "Room";
+            Component line = new TextComponent(" " + DOT + " ").withStyle(ChatFormatting.GRAY).
+                append(new TextComponent(String.valueOf(entry.count)).withStyle(ChatFormatting.GRAY)).
+                append(" ").
+                append(entry.toRoomEntry().getName()).
+                append(new TextComponent(" " + roomStr).withStyle(ChatFormatting.GRAY));
+            VaultItemsHandler.appendStyledLine(builder, line.getString(), line);
+        }
 
-            builder.append(" ").
-                append(VaultItemsHandler.DOT).
-                append(" ").
-                append(entry.count).
-                append(" ").
-                append(entry.toRoomEntry().getName().getString()).
-                append(" ").
-                append(roomStr).
-                append("\n");
+        for (ResourceLocation modifierId : data.getModifiers())
+        {
+            VaultModifierRegistry.getOpt(modifierId).ifPresent(vaultModifier ->
+            {
+                TextColor textColor = vaultModifier.getDisplayTextColor();
+                Component line = new TextComponent(" " + DOT + " " + vaultModifier.getDisplayName()).
+                    withStyle(textColor == null ? Style.EMPTY : Style.EMPTY.withColor(textColor));
+                VaultItemsHandler.appendStyledLine(builder, line.getString(), line);
+            });
+        }
+
+        if (data.getEchoCost() != null)
+        {
+            VaultItemsHandler.appendGameLine(builder, new TextComponent("Echo Cost: ").
+                append(new TextComponent(String.valueOf(data.getEchoCost())).withStyle(ChatFormatting.DARK_PURPLE)));
         }
     }
 
@@ -934,39 +971,101 @@ public class VaultItemsHandler
      */
     public static void handleTrinketTooltip(StringBuilder builder, ItemStack itemStack, CompoundTag itemTag)
     {
-        // I do not want to include Botania in dependencies. This is workaround.
+        if (!TrinketItem.isIdentified(itemStack))
+        {
+            VaultItemsHandler.appendStyledLine(builder,
+                "Right click to identify",
+                new TextComponent("Right click to identify").withStyle(ChatFormatting.GRAY));
+            return;
+        }
+
+        int totalUses = itemTag.getInt("vaultUses");
+        int used = itemTag.getList("usedVaults", 10).size();
+        int remaining = Math.max(totalUses - used, 0);
+        VaultItemsHandler.appendGameLine(builder, new TextComponent("Uses: ").append(String.valueOf(remaining)));
 
         AttributeGearData data = AttributeGearData.read(itemStack);
+        data.getFirstValue(ModGearAttributes.CRAFTED_BY).ifPresent(crafter ->
+            VaultItemsHandler.appendGameLine(builder, new TextComponent("Crafted by: ").
+                append(new TextComponent(crafter).withStyle(Style.EMPTY.withColor(CRAFTER_COLOUR)))));
 
-        if (data.getFirstValue(ModGearAttributes.STATE).orElse(VaultGearState.UNIDENTIFIED) == VaultGearState.IDENTIFIED)
+        Optional<List<TrinketEffect<?>>> combined = VaultItemsHandler.combinedTrinketEffects(itemStack);
+        List<TrinketEffect<?>> effects = combined.orElseGet(() -> itemStack.getItem() instanceof GreedTrinketItem ?
+            GreedTrinketItem.getAllTrinkets(itemStack) :
+            TrinketItem.getTrinket(itemStack).<List<TrinketEffect<?>>>map(List::of).orElse(List.of()));
+
+        for (TrinketEffect<?> effect : effects)
         {
-            int totalUses = itemTag.getInt("vaultUses");
-            int used = itemTag.getList("usedVaults", 10).size();
-            int remaining = Math.max(totalUses - used, 0);
+            TrinketConfig.Trinket trinket = effect.getTrinketConfig();
 
-            builder.append("**Uses:** ").append(String.valueOf(remaining)).append("\n");
+            if (trinket == null)
+            {
+                continue;
+            }
 
-            data.getFirstValue(ModGearAttributes.CRAFTED_BY).ifPresent(crafter ->
-                builder.append("**Crafted by:** ").append(crafter).append("\n"));
+            if (combined.isPresent())
+            {
+                VaultItemsHandler.appendStyledLine(builder,
+                    "**" + trinket.getName() + "**",
+                    new TextComponent(trinket.getName()).withStyle(ChatFormatting.GOLD));
+            }
 
-            data.getFirstValue(ModGearAttributes.TRINKET_EFFECT).ifPresent(effect -> {
-                TrinketConfig.Trinket trinket = effect.getTrinketConfig();
-                builder.append(trinket.getEffectText()).append("\n");
-            });
-
-            data.getFirstValue(ModGearAttributes.TRINKET_EFFECT).
-                map(TrinketEffect::getConfig).
-                filter(TrinketEffect.Config::hasCuriosSlot).
-                map(TrinketEffect.Config::getCuriosSlot).
-                ifPresent(slot -> {
-                    MutableComponent slotTranslation = new TranslatableComponent("curios.slot").append(": ");
-                    MutableComponent slotType = new TranslatableComponent("curios.identifier." + slot);
-
-                    builder.append("\n").
-                        append(slotTranslation.getString()).
-                        append(slotType.getString());
-                });
+            for (TextComponent line : MiscUtils.splitDescriptionText(trinket.getEffectText()))
+            {
+                VaultItemsHandler.appendStyledLine(builder, line.getString(), line.withStyle(ChatFormatting.GRAY));
+            }
         }
+
+        Optional<String> slot = itemStack.getItem() instanceof GreedTrinketItem ?
+            Optional.of("red_trinket") :
+            TrinketItem.getSlotIdentifier(itemStack);
+
+        slot.ifPresent(identifier ->
+        {
+            builder.append("\n");
+            VaultItemsHandler.appendGameLine(builder, VaultItemsHandler.curiosSlotLine(identifier));
+        });
+    }
+
+
+    /**
+     * The effects of a Wold's Vaults Combined Trinket, which holds several; read through its own static accessor
+     * because this mod does not depend on Wold's Vaults.
+     *
+     * @param itemStack the trinket.
+     * @return the effects, or empty when the item is not a Combined Trinket.
+     */
+    @SuppressWarnings("unchecked")
+    private static Optional<List<TrinketEffect<?>>> combinedTrinketEffects(ItemStack itemStack)
+    {
+        Class<?> itemClass = itemStack.getItem().getClass();
+
+        if (!itemClass.getName().equals(COMBINED_TRINKET_CLASS))
+        {
+            return Optional.empty();
+        }
+
+        try
+        {
+            return Optional.of((List<TrinketEffect<?>>) itemClass.getMethod("getTrinkets", ItemStack.class).invoke(null, itemStack));
+        }
+        catch (ReflectiveOperationException failure)
+        {
+            throw new IllegalStateException("Wold's Vaults' CombinedTrinketItem#getTrinkets(ItemStack) is not callable", failure);
+        }
+    }
+
+
+    /**
+     * The game's Curios slot line: the label in gold, the slot name in yellow.
+     *
+     * @param identifier the Curios slot identifier, e.g. charm.
+     * @return the line.
+     */
+    private static Component curiosSlotLine(String identifier)
+    {
+        return new TranslatableComponent("curios.slot").append(": ").withStyle(ChatFormatting.GOLD).
+            append(new TranslatableComponent("curios.identifier." + identifier).withStyle(ChatFormatting.YELLOW));
     }
 
 
@@ -1058,29 +1157,6 @@ public class VaultItemsHandler
     }
 
 
-    public static void handleJewelTooltip(StringBuilder builder, ItemStack itemStack)
-    {
-        VaultGearData data = VaultGearData.read(itemStack);
-        VaultGearState state = data.getState();
-
-        builder.append("**Level:** ").append(data.getItemLevel()).append("\n");
-
-        if (state == VaultGearState.IDENTIFIED)
-        {
-            data.getFirstValue(ModGearAttributes.JEWEL_SIZE).ifPresent(size ->
-                builder.append(size).append(" Size\n"));
-
-            for (VaultGearModifier.AffixType affixType : VaultGearModifier.AffixType.values())
-            {
-                for (VaultGearModifier<?> modifier : data.getModifiers(affixType))
-                {
-                    VaultItemsHandler.addAffix(builder, modifier, data, affixType, itemStack);
-                }
-            }
-        }
-    }
-
-
     public static void handleSigilTooltip(StringBuilder builder, ItemStack itemStack)
     {
         SigilItem.readSigil(itemStack).ifPresent(sigil ->
@@ -1107,7 +1183,7 @@ public class VaultItemsHandler
     {
         DeckSocketItem.getDeckModifier(itemStack).
             map(DeckTooltips::modifierLines).
-            ifPresent(lines -> lines.forEach(line -> builder.append(line.getString()).append("\n")));
+            ifPresent(lines -> lines.forEach(line -> VaultItemsHandler.appendStyledLine(builder, line.getString(), line)));
     }
 
 
@@ -1212,32 +1288,45 @@ public class VaultItemsHandler
 
 
 
+    /**
+     * Writes a charm's tooltip as the game draws it. Wold's Vaults replaces Vault Hunters' charm tooltip with one that
+     * leaves out the uses and the Curios slot.
+     *
+     * @param builder Embed Builder.
+     * @param itemStack the charm.
+     */
     @SuppressWarnings("deprecation")
     public static void handleCharmTooltip(StringBuilder builder, ItemStack itemStack)
     {
-        int totalUses = CharmItem.getUses(itemStack);
-        int used = CharmItem.getUsedVaults(itemStack).size();
-        int remaining = Math.max(totalUses - used, 0);
+        boolean woldsLayout = ModList.get().isLoaded(WOLDS_VAULTS_MOD_ID);
 
-        builder.append("**Uses:** ").append(remaining).append("\n");
+        if (!woldsLayout)
+        {
+            int totalUses = CharmItem.getUses(itemStack);
+            int used = CharmItem.getUsedVaults(itemStack).size();
+            int remaining = Math.max(totalUses - used, 0);
+            VaultItemsHandler.appendGameLine(builder, new TextComponent("Uses: ").append(remaining + "/" + totalUses));
+        }
 
         AttributeGearData data = AttributeGearData.read(itemStack);
 
-        data.getFirstValue(ModGearAttributes.CHARM_EFFECT).ifPresent((charmEffect) ->
+        data.getFirstValue(ModGearAttributes.CHARM_EFFECT).ifPresent(charmEffect ->
         {
             DecimalModifierReader.Percentage<?> percentage = (DecimalModifierReader.Percentage<?>)
                 ((CharmEffect.Config<?>) charmEffect.getCharmConfig().getConfig()).getAttribute().getReader();
+            String effectText = Math.round(CharmItem.getValue(itemStack) * 100.0F) + "% " + percentage.getModifierName();
 
-            int value = Math.round(CharmItem.getValue(itemStack) * 100.0F);
-
-            builder.append(value).append("% ").append(percentage.getModifierName()).append("\n");
-            builder.append("**Size:** ").append("% ").append(10).append("\n");
+            VaultItemsHandler.appendStyledLine(builder,
+                effectText,
+                new TextComponent(effectText).withStyle(Style.EMPTY.withColor(percentage.getRgbColor())));
+            VaultItemsHandler.appendGameLine(builder, new TextComponent("Size: ").append(String.valueOf(10)));
             builder.append("\n");
         });
 
-        builder.append("**Slot:** ").
-            append(new TranslatableComponent("curios.identifier.charm").getString()).
-            append("\n");
+        if (!woldsLayout)
+        {
+            VaultItemsHandler.appendGameLine(builder, VaultItemsHandler.curiosSlotLine("charm"));
+        }
     }
 
 
@@ -2684,6 +2773,14 @@ public class VaultItemsHandler
      * The colour the game's card tooltip gives types and groups.
      */
     private static final int CARD_GROUP_COLOUR = 0xCCCCCC;
+
+    private static final int INSCRIPTION_COMPLETION_COLOUR = 0x48BAF8;
+
+    private static final ResourceLocation GREED_TIER_ATTRIBUTE = new ResourceLocation("the_vault", "greed_tier");
+
+    private static final String WOLDS_VAULTS_MOD_ID = "woldsvaults";
+
+    private static final String COMBINED_TRINKET_CLASS = "xyz.iwolfking.woldsvaults.items.CombinedTrinketItem";
 
     private static final Logger LOGGER = LogUtils.getLogger();
 
