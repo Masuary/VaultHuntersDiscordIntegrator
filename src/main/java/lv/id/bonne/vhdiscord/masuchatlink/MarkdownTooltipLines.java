@@ -63,23 +63,21 @@ public final class MarkdownTooltipLines
     /**
      * Builds the tooltip lines for one item.
      *
-     * @param title the item's name.
-     * @param titleColour the name's colour as #RRGGBB, or null for white.
+     * @param titleLine the item's name as styled runs.
      * @param markdown the description VaultItemsHandler wrote.
      * @param hints the modifier runs and value colours noted while the markdown was written.
      * @param extraLines lines to add after the description, as they are.
      * @param modLine the mod name line MasuChatLink added, or null.
      * @return one list of segments per tooltip line.
      */
-    public static List<List<TooltipSegment>> convert(String title,
-        String titleColour,
+    public static List<List<TooltipSegment>> convert(List<TooltipSegment> titleLine,
         String markdown,
         TooltipColorHints.Hints hints,
         List<List<TooltipSegment>> extraLines,
         List<TooltipSegment> modLine)
     {
         List<List<TooltipSegment>> lines = new ArrayList<>();
-        lines.add(List.of(new TooltipSegment(title, titleColour, false, false)));
+        lines.add(titleLine);
 
         for (String raw : markdown.stripTrailing().split("\n", -1))
         {

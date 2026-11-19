@@ -18,11 +18,13 @@ import com.masuary.masuchatlink.api.TooltipSlot;
 import com.mojang.brigadier.StringReader;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import com.mojang.logging.LogUtils;
+import iskallia.vault.item.modification.ReforgeTagModificationFocus;
 import lv.id.bonne.vhdiscord.parser.TooltipColorHints;
 import lv.id.bonne.vhdiscord.parser.VaultItemsHandler;
 import net.minecraft.commands.arguments.NbtTagArgument;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.Style;
 import net.minecraft.network.chat.TextColor;
 import net.minecraft.network.chat.TranslatableComponent;
 import net.minecraft.resources.ResourceLocation;
@@ -107,7 +109,7 @@ public class MasuChatLinkEventListener
                 if (hoverEvent.has("action") &&
                     hoverEvent.get("action").getAsString().equals("show_item") &&
                     hoverEvent.has("contents") &&
-                    hoverEvent.getAsJsonObject("contents").has("tag"))
+                    hoverEvent.getAsJsonObject("contents").has("id"))
                 {
                     this.parseAndAttach(event, hoverEvent.getAsJsonObject("contents").getAsJsonObject());
                     return;
@@ -144,10 +146,16 @@ public class MasuChatLinkEventListener
 
             TooltipColorHints.start();
             String description;
+            String clientEventLines = "";
 
             try
             {
                 description = VaultItemsHandler.generateVaultHuntersItemTooltips(itemJson, itemStack, itemTag);
+
+                if (description == null || description.isBlank())
+                {
+                    clientEventLines = VaultItemsHandler.clientEventLines(itemStack);
+                }
             }
             finally
             {
@@ -156,7 +164,12 @@ public class MasuChatLinkEventListener
 
             if (description == null || description.isBlank())
             {
-                if (generic != null && slots != null)
+                if (generic != null && generic.lines() != null && generic.lines().size() >= 2 && !clientEventLines.isBlank())
+                {
+                    ChatRelayItem withEventLines = this.withClientEventLines(generic, clientEventLines);
+                    event.setItem(slots == null ? withEventLines : withEventLines.withSlots(slots));
+                }
+                else if (generic != null && slots != null)
                 {
                     event.setItem(generic.withSlots(slots));
                 }
@@ -210,14 +223,107 @@ public class MasuChatLinkEventListener
         List<List<TooltipSegment>> serverLines = generic == null || generic.lines() == null ? List.of() : generic.lines();
         List<TooltipSegment> modLine = serverLines.isEmpty() ? null : serverLines.get(serverLines.size() - 1);
         String described = description.replace("**", "");
-        List<List<TooltipSegment>> missing = serverLines.size() <= 2 ? List.of() : serverLines.subList(1, serverLines.size() - 1).stream().
-            filter(line -> !line.isEmpty()).
-            filter(line -> !described.contains(line.stream().map(TooltipSegment::text).collect(Collectors.joining()).strip())).
-            toList();
-        TextColor colour = itemStack.getHoverName().getStyle().getColor();
-        String titleColour = colour == null ? null : String.format("#%06X", colour.getValue() & 0xFFFFFF);
+        List<List<TooltipSegment>> missing = serverLines.size() <= 2 || this.hidesServerLines(itemStack) ? List.of() :
+            serverLines.subList(1, serverLines.size() - 1).stream().
+                filter(line -> !line.isEmpty()).
+                filter(line -> !MasuChatLinkEventListener.isDescribed(described, line)).
+                toList();
 
-        return MarkdownTooltipLines.convert(title, titleColour, description, this.colourHints, missing, modLine);
+        return MarkdownTooltipLines.convert(this.titleLineOf(itemStack, title), description, this.colourHints, missing, modLine);
+    }
+
+
+    /**
+     * MasuChatLink's item with the lines client tooltip events add (Curios slot, Soul Value, tooltip config description)
+     * under its name, above the server tooltip lines, which stay as they are.
+     *
+     * @param generic the item MasuChatLink attached, with its name line first and its mod line last.
+     * @param clientEventLines the client event lines as markdown.
+     * @return the item with those lines.
+     */
+    private ChatRelayItem withClientEventLines(ChatRelayItem generic, String clientEventLines)
+    {
+        List<List<TooltipSegment>> serverLines = generic.lines();
+        List<List<TooltipSegment>> following = new ArrayList<>();
+
+        if (clientEventLines.endsWith("\n\n"))
+        {
+            following.add(List.of());
+        }
+
+        following.addAll(serverLines.subList(1, serverLines.size() - 1));
+        List<List<TooltipSegment>> lines = MarkdownTooltipLines.convert(serverLines.get(0),
+            clientEventLines,
+            this.colourHints,
+            following,
+            serverLines.get(serverLines.size() - 1));
+        String description = clientEventLines.replace("**", "").strip() + "\n" + generic.description();
+
+        return new ChatRelayItem(generic.name(), generic.colour(), description.strip(), lines, generic.slots(), generic.deck());
+    }
+
+
+    /**
+     * Whether a server tooltip line is already in the description; a line holding line breaks (config lore) counts when
+     * each of its lines is.
+     *
+     * @param described the description without markdown.
+     * @param line the server line.
+     * @return true when the description has it.
+     */
+    private static boolean isDescribed(String described, List<TooltipSegment> line)
+    {
+        String text = line.stream().map(TooltipSegment::text).collect(Collectors.joining());
+
+        return text.lines().map(String::strip).filter(part -> !part.isEmpty()).allMatch(described::contains);
+    }
+
+
+    /**
+     * Whether the item's server tooltip must not be merged: Forge strips a faceted focus's client-only tooltip on the
+     * server, so its server lines are the parent focus text the game never shows.
+     *
+     * @param itemStack the item.
+     * @return true when the server lines are left out.
+     */
+    private boolean hidesServerLines(ItemStack itemStack)
+    {
+        return itemStack.getItem() instanceof ReforgeTagModificationFocus;
+    }
+
+
+    /**
+     * The name line as the game draws it: the hover name's runs in their colours, italic for a renamed item.
+     *
+     * @param itemStack the item.
+     * @param title the name text, used when the hover name has no text of its own.
+     * @return the name's segments.
+     */
+    private List<TooltipSegment> titleLineOf(ItemStack itemStack, String title)
+    {
+        Component name = itemStack.getHoverName();
+        boolean renamed = itemStack.hasCustomHoverName();
+        List<TooltipSegment> segments = new ArrayList<>();
+
+        name.visit((style, text) ->
+        {
+            if (!text.isEmpty())
+            {
+                TextColor colour = style.getColor();
+                String hex = colour == null ? null : String.format("#%06X", colour.getValue() & 0xFFFFFF);
+                segments.add(new TooltipSegment(text, hex, style.isBold(), style.isItalic() || renamed));
+            }
+
+            return Optional.empty();
+        }, Style.EMPTY);
+
+        if (segments.isEmpty() || !name.getString().equals(title))
+        {
+            TextColor colour = name.getStyle().getColor();
+            return List.of(new TooltipSegment(title, colour == null ? null : String.format("#%06X", colour.getValue() & 0xFFFFFF), false, renamed));
+        }
+
+        return segments;
     }
 
 

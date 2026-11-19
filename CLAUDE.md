@@ -44,7 +44,8 @@ When adding support for a new item type:
 3. Write every line through `appendGameLine(builder, Component)` (`**Label:** value` markdown) or `appendStyledLine(builder, markdown, Component)`, never plain `builder.append`: they record the line's styled runs, and `MarkdownTooltipLines` draws a recorded line exactly in MasuChatLink's in-game picture. Unrecorded lines come out white.
 4. Prefer calling the game's own text code when it is server-safe (no `@OnlyIn(CLIENT)`, `Screen`, `Minecraft`, `ClientScheduler`, client data), guarded like `crystalGameLines` (fallback, logged once per class); otherwise rebuild the same Components with the colours from the decompiled game source.
 5. The mod runs on Vault Hunters Remastered (Skyvault) and Wold's Vaults: a Wold's-only layout is chosen with `ModList.get().isLoaded(WOLDS_VAULTS_MOD_ID)` and Wold's classes are only reached by reflection.
-6. Check a change with a throwaway server probe on the Wolds HUB test copy, never committed: `/mnt/data/AI/work/masuchatlink-crystal-tooltip-2026-11-19/run-probe.sh` with `round3/RealItemProbe.java` runs every item in the world's saved inventories through the listener's path; `stop-probe.sh` restores the server.
+6. Write only the item's own lines: `generateVaultHuntersItemTooltips` adds the lines client tooltip events add in game (Curios `Slot:` line, VH's Soul Value from `vault_diffuser`, VH's `tooltip` config description and blank line) through `withClientEventLines`; items this handler does not describe get them above MasuChatLink's server lines in `MasuChatLinkEventListener`.
+7. Check a change with a throwaway server probe on the Wolds HUB test copy, never committed: `/mnt/data/AI/work/masuchatlink-crystal-tooltip-2026-11-19/run-probe.sh` with `round3/RealItemProbe.java` runs every item in the world's saved inventories through the listener's path; `stop-probe.sh` restores the server.
 
 ## Dependencies
 
