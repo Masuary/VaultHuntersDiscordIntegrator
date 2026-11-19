@@ -8,6 +8,7 @@ package lv.id.bonne.vhdiscord.parser;
 
 
 import com.google.gson.JsonObject;
+import java.awt.Color;
 import java.text.DecimalFormat;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -16,11 +17,11 @@ import java.util.function.Predicate;
 import com.mojang.logging.LogUtils;
 import org.slf4j.Logger;
 
-import iskallia.vault.antique.Antique;
-import iskallia.vault.config.AntiquesConfig;
 import iskallia.vault.config.PlayerTitlesConfig;
 import iskallia.vault.config.TrinketConfig;
 import iskallia.vault.config.UniqueGearConfig;
+import iskallia.vault.config.VaultItemsConfig;
+import iskallia.vault.config.entry.DescriptionData;
 import iskallia.vault.config.gear.VaultGearTagConfig;
 import iskallia.vault.config.gear.VaultGearTierConfig;
 import iskallia.vault.config.sigil.SigilConfig;
@@ -42,7 +43,6 @@ import iskallia.vault.dynamodel.registry.DynamicModelRegistry;
 import iskallia.vault.gear.VaultGearState;
 import iskallia.vault.gear.attribute.VaultGearAttribute;
 import iskallia.vault.gear.attribute.VaultGearAttributeInstance;
-import iskallia.vault.gear.attribute.VaultGearAttributeRegistry;
 import iskallia.vault.gear.attribute.VaultGearModifier;
 import iskallia.vault.gear.attribute.config.ConfigurableAttributeGenerator;
 import iskallia.vault.gear.charm.CharmEffect;
@@ -63,6 +63,7 @@ import iskallia.vault.item.crystal.layout.*;
 import iskallia.vault.item.crystal.layout.preset.ParadoxTemplatePreset;
 import iskallia.vault.item.crystal.modifiers.CrystalModifiers;
 import iskallia.vault.item.crystal.modifiers.ParadoxCrystalModifiers;
+import iskallia.vault.item.crystal.modifiers.PersonalCrystalModifiers;
 import iskallia.vault.item.crystal.objective.*;
 import iskallia.vault.item.crystal.properties.CapacityCrystalProperties;
 import iskallia.vault.item.crystal.properties.CrystalProperties;
@@ -86,7 +87,12 @@ import iskallia.vault.item.ItemShardPouch;
 import iskallia.vault.item.VaultCatalystItem;
 import iskallia.vault.item.gear.EtchingItem;
 import iskallia.vault.item.gear.GreedTrinketItem;
+import iskallia.vault.item.gear.IVaultUsesItem;
 import iskallia.vault.item.gear.TrinketItem;
+import iskallia.vault.item.gear.VaultCharmItem;
+import iskallia.vault.item.gear.VaultNecklaceItem;
+import iskallia.vault.item.gear.VaultUsesHelper;
+import iskallia.vault.item.gear.VoidStoneItem;
 import iskallia.vault.item.modification.GearModificationItem;
 import iskallia.vault.item.modification.ReforgeTagModificationFocus;
 import iskallia.vault.item.CompanionRelicItem;
@@ -96,11 +102,9 @@ import iskallia.vault.item.tool.JewelItem;
 import iskallia.vault.item.tool.PaxelItem;
 import iskallia.vault.util.MiscUtils;
 import iskallia.vault.util.TextUtil;
-import iskallia.vault.world.data.PlayerTitlesData;
+import iskallia.vault.world.VaultDifficulty;
 import lv.id.bonne.vhdiscord.vaulthunters.mixin.CardEntryAccessor;
 import lv.id.bonne.vhdiscord.vaulthunters.mixin.GearCardModifierAccessor;
-import lv.id.bonne.vhdiscord.vaulthunters.mixin.GearModificationItemAccessor;
-import lv.id.bonne.vhdiscord.vaulthunters.mixin.ReforgeTagModificationFocusInvoker;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.nbt.CompoundTag;
@@ -112,7 +116,6 @@ import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.TooltipFlag;
 import net.minecraftforge.fml.ModList;
-import net.minecraftforge.registries.ForgeRegistries;
 
 
 /**
@@ -317,6 +320,8 @@ public class VaultItemsHandler
         VaultGearState state = data.getState();
         boolean jewel = itemStack.getItem() instanceof JewelItem;
 
+        VaultItemsHandler.appendGearUsesLines(builder, itemStack, state);
+
         // Add unique item lore
         data.getFirstValue(ModGearAttributes.UNIQUE_ITEM_KEY).
             flatMap(ModConfigs.UNIQUE_GEAR::getEntry).
@@ -484,7 +489,71 @@ public class VaultItemsHandler
 
 
     /**
-     * This method parses bottle item into discord chat.
+     * The lines god charms, necklaces and void stones show above their gear tooltip without Shift: the uses left, a god
+     * charm's reputation and god, and a necklace's identify hint. Wold's Vaults empties the void stone's tooltip, and
+     * the game hides a god charm's uses from players with the matching prestige power, which is not known here.
+     *
+     * @param builder Embed Builder.
+     * @param itemStack the gear item.
+     * @param state the item's identification state.
+     */
+    private static void appendGearUsesLines(StringBuilder builder, ItemStack itemStack, VaultGearState state)
+    {
+        boolean identified = state == VaultGearState.IDENTIFIED;
+
+        if (itemStack.getItem() instanceof VaultCharmItem)
+        {
+            if (identified)
+            {
+                int remaining = Math.max(VaultUsesHelper.getUses(itemStack) - VaultUsesHelper.getUsedVaults(itemStack).size(), 0);
+                VaultItemsHandler.appendGameLine(builder, new TextComponent("Uses: ").withStyle(ChatFormatting.GRAY).
+                    append(new TextComponent(String.valueOf(remaining)).withStyle(ChatFormatting.WHITE)));
+            }
+
+            VaultItemsHandler.appendGameLine(builder, new TextComponent("Reputation: ").withStyle(ChatFormatting.GRAY).
+                append(new TextComponent(String.valueOf(VaultCharmItem.getGodReputation(itemStack))).withStyle(ChatFormatting.WHITE)));
+            VaultCharmItem.getGod(itemStack).ifPresent(god ->
+                VaultItemsHandler.appendGameLine(builder, new TextComponent("Vault God: ").
+                    append(new TextComponent(god.getName()).withStyle(god.getChatColor()))));
+        }
+        else if (itemStack.getItem() instanceof VaultNecklaceItem necklace)
+        {
+            if (identified)
+            {
+                VaultItemsHandler.appendGameLine(builder, VaultItemsHandler.usesLine(necklace, itemStack));
+            }
+            else
+            {
+                VaultItemsHandler.appendStyledLine(builder,
+                    "Right click to identify",
+                    new TextComponent("Right click to identify").withStyle(ChatFormatting.GRAY));
+            }
+        }
+        else if (itemStack.getItem() instanceof VoidStoneItem voidStone && identified &&
+            !ModList.get().isLoaded(WOLDS_VAULTS_MOD_ID))
+        {
+            VaultItemsHandler.appendGameLine(builder, VaultItemsHandler.usesLine(voidStone, itemStack));
+        }
+    }
+
+
+    /**
+     * The plain uses line of necklaces and void stones.
+     *
+     * @param usesItem the item type.
+     * @param itemStack the item.
+     * @return the line.
+     */
+    private static Component usesLine(IVaultUsesItem usesItem, ItemStack itemStack)
+    {
+        int remaining = Math.max(usesItem.getUses(itemStack) - usesItem.getUsedVaults(itemStack).size(), 0);
+        return new TextComponent("Uses: ").append(new TextComponent(String.valueOf(remaining)));
+    }
+
+
+    /**
+     * Writes a potion bottle's tooltip as the game draws it, without the recharge progress line the game counts for the
+     * viewer.
      * @param builder Embed Builder.
      * @param itemStack Bottle Item.
      */
@@ -496,76 +565,94 @@ public class VaultItemsHandler
             return;
         }
 
-        BottleItem.getType(itemStack).ifPresent(type -> {
-            builder.append(itemStack.getDisplayName().getString()).append("\n");
-
-            BottleItem.getRecharge(itemStack).ifPresent(recharge -> {
+        BottleItem.getType(itemStack).ifPresent(type ->
+        {
+            BottleItem.getRecharge(itemStack).ifPresent(recharge ->
+            {
                 switch (recharge)
                 {
-                    case TIME -> builder.append("Passively restores charges while inside a vault").append("\n");
-                    case MOBS -> builder.append("Kill vault mobs to restore charges").append("\n");
-                    case CHESTS -> builder.append("Loot vault chests to restore charges").append("\n");
+                    case TIME -> VaultItemsHandler.appendTextLine(builder,
+                        new TextComponent("Passively restores charges while inside a vault").withStyle(ChatFormatting.GRAY));
+                    case MOBS -> VaultItemsHandler.appendTextLine(builder,
+                        new TextComponent("Kill vault mobs to restore charges").withStyle(ChatFormatting.GRAY));
+                    case CHESTS -> VaultItemsHandler.appendTextLine(builder,
+                        new TextComponent("Loot vault chests to restore charges").withStyle(ChatFormatting.GRAY));
                 }
             });
 
-            builder.append("Consume a charge to").
-                append("\n").
-                append(" ").
-                append(DOT).
-                append(" Heal ").
-                append(ModConfigs.POTION.getPotion(type).getHealing()).
-                append(" Hit Points").
-                append("\n");
+            VaultItemsHandler.appendTextLine(builder, new TextComponent("Consume a ").
+                append(new TextComponent("charge").withStyle(ChatFormatting.WHITE)).
+                append(new TextComponent(" to")).
+                withStyle(Style.EMPTY.withColor(BOTTLE_TEXT_COLOUR)));
+            VaultItemsHandler.appendTextLine(builder, new TextComponent(" " + DOT + " Heal ").
+                append(new TextComponent(String.valueOf(ModConfigs.POTION.getPotion(type).getHealing()))).
+                append(new TextComponent(" Hit Points")).
+                withStyle(ChatFormatting.GREEN));
 
-            BottleItem.getEffect(itemStack).ifPresent(effect -> {
-                builder.append(" ").
-                    append(DOT).
-                    append(" ").
-                    append(effect.getTooltip().getString()).
-                    append("\n");
-            });
+            BottleItem.getEffect(itemStack).ifPresent(effect ->
+                VaultItemsHandler.appendTextLine(builder, new TextComponent(" " + DOT + " ").append(effect.getTooltip())));
         });
     }
 
 
     /**
-     * This method parses doll tooltip into discord chat.
+     * Writes a vault doll's tooltip as the game draws it for a player outside the doll's vault.
      * @param builder Embed Builder.
      * @param itemTag Vault Doll Item Tag.
      */
     public static void handleDollTooltip(StringBuilder builder, CompoundTag itemTag)
     {
-        String owner = itemTag.getCompound("playerProfile").getString("Name");
-
-        builder.append("**Owner:**").
-            append(" ").
-            append(owner).
-            append("\n");
-
-        int lootPercent = (int) (itemTag.getFloat("lootPercent") * 100.0F);
-
-        builder.append("**Loot Efficiency:**").
-            append(" ").
-            append(String.format("%d", lootPercent)).
-            append("%").
-            append("\n");
-
-        int xpPercent = (int) (itemTag.getFloat("xpPercent") * 100.0F);
-
-        builder.append("**Experience Efficiency:**").
-            append(" ").
-            append(String.format("%d", xpPercent)).
-            append("%").
-            append("\n");
-
-        if (itemTag.contains("vaultUUID"))
+        VaultDollItem.getPlayerGameProfile(itemTag).ifPresent(profile ->
         {
-            builder.append("**Ready to be released!**");
-        }
-        else
-        {
-            builder.append("**Ready for a vault!**");
-        }
+            VaultItemsConfig.VaultDoll config = ModConfigs.VAULT_ITEMS.VAULT_DOLL;
+
+            VaultItemsHandler.appendGameLine(builder, new TranslatableComponent("tooltip.the_vault.doll_owner",
+                new TextComponent(profile.getName()).withStyle(ChatFormatting.WHITE)).withStyle(ChatFormatting.GRAY));
+            VaultItemsHandler.appendGameLine(builder, VaultItemsHandler.dollEfficiencyLine("tooltip.the_vault.doll_loot_efficiency",
+                itemTag.getFloat("lootPercent"),
+                config.lootPercentageMin,
+                config.lootPercentageMax));
+            VaultItemsHandler.appendGameLine(builder, VaultItemsHandler.dollEfficiencyLine("tooltip.the_vault.doll_experience_efficiency",
+                itemTag.getFloat("xpPercent"),
+                config.xpPercentageMin,
+                config.xpPercentageMax));
+
+            if (itemTag.contains("vaultUUID"))
+            {
+                VaultItemsHandler.appendGameLine(builder, new TranslatableComponent("tooltip.the_vault.doll_status.completed_by",
+                    itemTag.getString("completedBy"),
+                    itemTag.getInt("vaultLevel")).withStyle(ChatFormatting.GRAY));
+                VaultItemsHandler.appendGameLine(builder,
+                    new TranslatableComponent("tooltip.the_vault.doll_status.completed").withStyle(ChatFormatting.GREEN));
+            }
+            else
+            {
+                VaultItemsHandler.appendGameLine(builder,
+                    new TranslatableComponent("tooltip.the_vault.doll_status.ready").withStyle(ChatFormatting.WHITE));
+            }
+        });
+    }
+
+
+    /**
+     * A doll's loot or experience efficiency line: the percentage red in the lowest third of its configured range, gold
+     * in the middle third and green in the top third.
+     *
+     * @param translationKey the line's translation key.
+     * @param percent the efficiency, 1 being 100%.
+     * @param minimum the lowest efficiency a doll can roll.
+     * @param maximum the highest efficiency a doll can roll.
+     * @return the line.
+     */
+    private static Component dollEfficiencyLine(String translationKey, float percent, float minimum, float maximum)
+    {
+        float thirdOfRange = (maximum - minimum) / 3.0F;
+        ChatFormatting colour = percent < minimum + thirdOfRange ? ChatFormatting.RED :
+            percent < maximum - thirdOfRange ? ChatFormatting.GOLD : ChatFormatting.GREEN;
+
+        return new TranslatableComponent(translationKey,
+            new TextComponent(String.format("%d", (int) (percent * 100.0F)) + "%").withStyle(colour)).
+            withStyle(ChatFormatting.GRAY);
     }
 
 
@@ -839,7 +926,7 @@ public class VaultItemsHandler
             }
             catch (RuntimeException | LinkageError failure)
             {
-                if (CRYSTAL_TEXT_FAILURES.add(part.getClass().getName()))
+                if (GAME_TEXT_FAILURES.add(part.getClass().getName()))
                 {
                     LOGGER.warn("{} cannot write its crystal tooltip on the server; crystals with it use the summary text",
                         part.getClass().getName(), failure);
@@ -855,17 +942,23 @@ public class VaultItemsHandler
 
     /**
      * Writes one game tooltip line as markdown ({@code **Label:** value}, or the whole line bold when it has no label)
-     * and notes its styled runs, so the in-game picture draws it in the game's colours.
+     * and notes its styled runs, so the in-game picture draws it in the game's colours; a line holding line breaks is
+     * written as several lines.
      *
      * @param builder Embed Builder.
      * @param line the game's line.
      */
     private static void appendGameLine(StringBuilder builder, Component line)
     {
-        String text = line.getString().strip();
+        String raw = line.getString();
+        String text = raw.strip();
         int separator = text.indexOf(": ");
 
-        if (separator > 0)
+        if (raw.indexOf('\n') >= 0)
+        {
+            VaultItemsHandler.splitAtLineBreaks(line).forEach(part -> VaultItemsHandler.appendGameLine(builder, part));
+        }
+        else if (separator > 0)
         {
             VaultItemsHandler.appendStyledLine(builder,
                 "**" + text.substring(0, separator) + ":** " + text.substring(separator + 2),
@@ -883,6 +976,41 @@ public class VaultItemsHandler
 
 
     /**
+     * Splits a component at its line breaks, each part keeping its styles; config texts such as augment lore hold several
+     * tooltip lines in one component.
+     *
+     * @param component the component.
+     * @return one component per line.
+     */
+    private static List<MutableComponent> splitAtLineBreaks(Component component)
+    {
+        List<MutableComponent> lines = new ArrayList<>(List.of(new TextComponent("")));
+
+        component.visit((style, text) ->
+        {
+            String[] parts = text.split("\n", -1);
+
+            for (int index = 0; index < parts.length; index++)
+            {
+                if (index > 0)
+                {
+                    lines.add(new TextComponent(""));
+                }
+
+                if (!parts[index].isEmpty())
+                {
+                    lines.get(lines.size() - 1).append(new TextComponent(parts[index]).withStyle(style));
+                }
+            }
+
+            return Optional.empty();
+        }, Style.EMPTY);
+
+        return lines;
+    }
+
+
+    /**
      * Writes a markdown line and notes the styled runs of the game's line it stands for, so the in-game picture draws
      * that line in the game's colours instead of reading the markdown.
      *
@@ -894,6 +1022,58 @@ public class VaultItemsHandler
     {
         builder.append(markdown).append("\n");
         TooltipColorHints.record(markdown.replace("**", "").strip(), line);
+    }
+
+
+    /**
+     * Writes one game tooltip line as plain text, for description lines the game draws without a label, and notes its
+     * styled runs; an empty line stays blank.
+     *
+     * @param builder Embed Builder.
+     * @param line the game's line.
+     */
+    private static void appendTextLine(StringBuilder builder, Component line)
+    {
+        String text = line.getString().strip();
+
+        if (text.isEmpty())
+        {
+            builder.append("\n");
+        }
+        else
+        {
+            VaultItemsHandler.appendStyledLine(builder, text, line);
+        }
+    }
+
+
+    /**
+     * Writes the lines an item's own tooltip code writes, each as {@link #appendGameLine} does; for items whose tooltip
+     * Vault Hunters builds without client classes, so it runs on a dedicated server too.
+     *
+     * @param builder Embed Builder.
+     * @param itemStack the item.
+     */
+    private static void appendItemGameLines(StringBuilder builder, ItemStack itemStack)
+    {
+        List<Component> lines = new ArrayList<>();
+
+        try
+        {
+            itemStack.getItem().appendHoverText(itemStack, null, lines, TooltipFlag.Default.NORMAL);
+        }
+        catch (RuntimeException | LinkageError failure)
+        {
+            if (GAME_TEXT_FAILURES.add(itemStack.getItem().getClass().getName()))
+            {
+                LOGGER.warn("{} cannot write its tooltip on the server; its picture has no description",
+                    itemStack.getItem().getClass().getName(), failure);
+            }
+
+            return;
+        }
+
+        lines.forEach(line -> VaultItemsHandler.appendGameLine(builder, line));
     }
 
 
@@ -1089,15 +1269,18 @@ public class VaultItemsHandler
         fragmentRegistry = ModDynamicModels.Relics.RELIC_REGISTRY;
 
         resourceLocation.flatMap(fragmentRegistry::get).ifPresent(relicModel ->
-            builder.append("**Assembles:** ").append(relicModel.getDisplayName()));
+        {
+            VaultItemsHandler.appendGameLine(builder, new TextComponent("Assembles: ").
+                append(new TextComponent(relicModel.getDisplayName()).withStyle(Style.EMPTY.withColor(RELIC_COLOUR))));
+            builder.append("\n");
+            VaultItemsHandler.appendTextLine(builder,
+                new TextComponent("Craft a Relic Pedestal to assemble").withStyle(ChatFormatting.GRAY));
+            VaultItemsHandler.appendTextLine(builder,
+                new TextComponent("this fragment into a Relic").withStyle(ChatFormatting.GRAY));
+        });
     }
 
 
-//    /**
-//     * This method parses Vault Catalyst item tooltip into discord chat.
-//     * @param builder Embed Builder.
-//     * @param itemStack Vault Catalyst Item Stack.
-//     */
     /**
      * This method parses Infused Catalyst item tooltip into discord chat.
      * @param builder Embed Builder.
@@ -1107,24 +1290,21 @@ public class VaultItemsHandler
     {
         if (InfusedCatalystItem.isSuper(itemStack))
         {
-            builder.append("Used to modify your Personal Vault\n");
+            VaultItemsHandler.appendTextLine(builder,
+                new TextComponent("Used to modify your Personal Vault").withStyle(ChatFormatting.GRAY));
+        }
+        else
+        {
+            InfusedCatalystItem.getSize(itemStack).ifPresentOrElse(
+                size -> VaultItemsHandler.appendGameLine(builder, new TextComponent("Size: ").
+                    append(new TextComponent(String.valueOf(size)).withStyle(Style.EMPTY.withColor(CATALYST_SIZE_COLOUR)))),
+                () -> VaultItemsHandler.appendGameLine(builder, new TextComponent("Size: ???").withStyle(ChatFormatting.GRAY)));
         }
 
-        if (!InfusedCatalystItem.isSuper(itemStack))
+        for (ResourceLocation modifierId : InfusedCatalystItem.getModifiers(itemStack))
         {
-            InfusedCatalystItem.getSize(itemStack).ifPresent(size ->
-                builder.append("**Size:** ").append(size).append("\n"));
-        }
-
-        List<ResourceLocation> modifiers = InfusedCatalystItem.getModifiers(itemStack);
-
-        if (!modifiers.isEmpty())
-        {
-            for (ResourceLocation modifierId : modifiers)
-            {
-                VaultModifierRegistry.getOpt(modifierId).ifPresent(vaultModifier ->
-                    builder.append(" - ").append(vaultModifier.getDisplayName()).append("\n"));
-            }
+            VaultModifierRegistry.getOpt(modifierId).ifPresent(vaultModifier ->
+                VaultItemsHandler.appendBulletModifierLine(builder, vaultModifier));
         }
     }
 
@@ -1136,44 +1316,65 @@ public class VaultItemsHandler
      */
     public static void handleBaseCatalystTooltip(StringBuilder builder, ItemStack itemStack)
     {
-        builder.append("Use in a Crystal Workbench to modify/upgrade a Vault Crystal\n");
+        VaultItemsHandler.appendItemGameLines(builder, itemStack);
     }
 
 
+    /**
+     * Writes a companion relic's modifiers as the game lists them.
+     *
+     * @param builder Embed Builder.
+     * @param itemStack the companion relic.
+     */
     public static void handleCompanionRelicTooltip(StringBuilder builder, ItemStack itemStack)
     {
-        builder.append("Use in a Companion Home to add a modifier to your companion.\n");
-
-        List<ResourceLocation> modifiers = CompanionRelicItem.getModifiers(itemStack);
-
-        if (!modifiers.isEmpty())
+        for (ResourceLocation modifierId : CompanionRelicItem.getModifiers(itemStack))
         {
-            for (ResourceLocation modifierId : modifiers)
-            {
-                VaultModifierRegistry.getOpt(modifierId).ifPresent(vaultModifier ->
-                    builder.append(" ").append(DOT).append(" ").append(vaultModifier.getDisplayName()).append("\n"));
-            }
+            VaultModifierRegistry.getOpt(modifierId).ifPresent(vaultModifier ->
+                VaultItemsHandler.appendBulletModifierLine(builder, vaultModifier));
         }
     }
 
 
+    /**
+     * A modifier line as infused catalysts and companion relics draw it: a bullet and the modifier's name, all in the
+     * modifier's colour.
+     *
+     * @param builder Embed Builder.
+     * @param vaultModifier the modifier.
+     */
+    private static void appendBulletModifierLine(StringBuilder builder, VaultModifier<?> vaultModifier)
+    {
+        VaultItemsHandler.appendTextLine(builder, new TextComponent(" " + DOT + " " + vaultModifier.getDisplayName()).
+            withStyle(Style.EMPTY.withColor(vaultModifier.getDisplayTextColor())));
+    }
+
+
+    /**
+     * Writes a sigil's tooltip as the game draws it. The game counts the crate tiers for the viewer's vault level; with
+     * no viewer here, the sigil's highest level is used.
+     *
+     * @param builder Embed Builder.
+     * @param itemStack the sigil.
+     */
     public static void handleSigilTooltip(StringBuilder builder, ItemStack itemStack)
     {
         SigilItem.readSigil(itemStack).ifPresent(sigil ->
         {
-            builder.append("**Sigil:** ").append(sigil.getDisplayName()).append("\n");
-            builder.append("+").append(PERCENT_FORMAT.format(sigil.getDifficulty())).append(" Difficulty\n");
+            VaultItemsHandler.appendGameLine(builder, new TextComponent("Sigil: ").withStyle(ChatFormatting.GRAY).
+                append(new TextComponent(sigil.getDisplayName()).withStyle(Style.EMPTY.withColor(sigil.getColor()))));
+            VaultItemsHandler.appendTextLine(builder, new TextComponent("+").withStyle(ChatFormatting.GRAY).
+                append(new TextComponent(PERCENT_FORMAT.format(sigil.getDifficulty())).withStyle(ChatFormatting.WHITE)).
+                append(" Difficulty"));
 
             SigilConfig sigilConfig = ModConfigs.SIGIL.get(sigil.getId());
 
             if (sigilConfig != null)
             {
                 int crateTiers = sigilConfig.getLevel(Integer.MAX_VALUE).getExtraCrateTiers();
-
-                if (crateTiers > 0)
-                {
-                    builder.append("+").append(crateTiers).append(" Crate Tiers\n");
-                }
+                VaultItemsHandler.appendTextLine(builder, new TextComponent("+").withStyle(ChatFormatting.GRAY).
+                    append(new TextComponent(String.valueOf(crateTiers)).withStyle(ChatFormatting.WHITE)).
+                    append(" Crate Tiers"));
             }
         });
     }
@@ -1274,16 +1475,56 @@ public class VaultItemsHandler
 
 
     /**
-     * This method adds Vault Augment Item description the discord chat.
+     * Writes an augment's tooltip as the game draws it. Wold's Vaults' Infused Augment draws its theme in a rainbow
+     * built with client classes, so that line is rebuilt here; a Vault Hunters augment writes its own lines.
+     *
      * @param builder Embed Builder.
-     * @param itemStack Vault augment item.
+     * @param itemStack the augment.
      */
     public static void handleAugmentTooltip(StringBuilder builder, ItemStack itemStack)
     {
-        builder.append("**Theme:** ");
-        AugmentItem.getTheme(itemStack).ifPresentOrElse(
-            (key) -> builder.append(key.getName()),
-            () -> builder.append("???"));
+        if (!itemStack.getItem().getClass().getName().equals(INFUSED_AUGMENT_CLASS))
+        {
+            VaultItemsHandler.appendItemGameLines(builder, itemStack);
+            return;
+        }
+
+        AugmentItem.getTheme(itemStack).ifPresent(key ->
+            ModConfigs.THEME_AUGMENT_LORE.getAugmentLore(key.getId()).ifPresentOrElse(lore ->
+                {
+                    VaultItemsHandler.appendGameLine(builder, new TextComponent("Theme: ").withStyle(ChatFormatting.GRAY).
+                        append(VaultItemsHandler.rainbowText(lore.displayName + " | " + key.getName())));
+
+                    for (DescriptionData description : lore.description)
+                    {
+                        VaultItemsHandler.appendGameLine(builder, description.getComponent());
+                    }
+                },
+                () -> VaultItemsHandler.appendGameLine(builder, new TextComponent("Theme: ").withStyle(ChatFormatting.GRAY).
+                    append(VaultItemsHandler.rainbowText(key.getName())))));
+    }
+
+
+    /**
+     * Text with one colour per character, running once around the hue circle from a hue that moves with the clock, as
+     * Wold's Vaults draws rainbow text.
+     *
+     * @param text the text.
+     * @return the coloured text.
+     */
+    private static MutableComponent rainbowText(String text)
+    {
+        MutableComponent result = new TextComponent("");
+        float baseHue = (System.currentTimeMillis() % RAINBOW_PERIOD_MILLISECONDS) / (float) RAINBOW_PERIOD_MILLISECONDS;
+
+        for (int index = 0; index < text.length(); index++)
+        {
+            float hue = (baseHue + (float) index / text.length()) % 1.0F;
+            int colour = Color.HSBtoRGB(hue, RAINBOW_SATURATION, RAINBOW_BRIGHTNESS) & 0xFFFFFF;
+            result.append(new TextComponent(String.valueOf(text.charAt(index))).withStyle(Style.EMPTY.withColor(colour)));
+        }
+
+        return result;
     }
 
 
@@ -1330,111 +1571,148 @@ public class VaultItemsHandler
     }
 
 
+    /**
+     * Writes a respec flask's tooltip as the game draws it.
+     *
+     * @param builder Embed Builder.
+     * @param itemStack the flask.
+     */
     public static void handleFlaskTooltip(StringBuilder builder, ItemStack itemStack)
     {
-        String abilityStr = ItemRespecFlask.getAbility(itemStack);
+        String abilityId = ItemRespecFlask.getAbility(itemStack);
 
-        if (abilityStr != null)
+        if (abilityId != null)
         {
-            ModConfigs.ABILITIES.getAbilityById(abilityStr).ifPresent((grp) ->
+            ModConfigs.ABILITIES.getAbilityById(abilityId).ifPresent(ability ->
             {
-                builder.append("Use to remove selected specialization").
-                    append("\n").
-                    append("of ability ").
-                    append(grp.getName());
+                builder.append("\n");
+                VaultItemsHandler.appendTextLine(builder, new TextComponent("Use to remove selected specialization"));
+                VaultItemsHandler.appendTextLine(builder, new TextComponent("of ability ").
+                    append(new TextComponent(ability.getName()).withStyle(ChatFormatting.GOLD)));
             });
         }
     }
 
 
+    /**
+     * Writes a focus's tooltip as the game draws it. A plain focus writes its own lines; the tagged reforge focus builds
+     * them with client classes, so they are rebuilt here, without the modifier list the game shows only on Shift.
+     *
+     * @param builder Embed Builder.
+     * @param itemStack the focus.
+     */
     public static void handleFocusTooltip(StringBuilder builder, ItemStack itemStack)
     {
-        if (ModConfigs.isInitialized())
+        if (!(itemStack.getItem() instanceof ReforgeTagModificationFocus))
         {
-            builder.append(new TranslatableComponent("the_vault.gear_modification.information").getString());
-            GearModificationItemAccessor accessor = (GearModificationItemAccessor) itemStack.getItem();
-
-            accessor.getModification().getDescription(itemStack).
-                forEach(component -> builder.append(component.getString()).append("\n"));
+            VaultItemsHandler.appendItemGameLines(builder, itemStack);
+            return;
         }
 
-        if (itemStack.getItem() instanceof ReforgeTagModificationFocus)
+        if (!ModConfigs.isInitialized())
         {
-            VaultGearTagConfig.ModTagGroup group = ReforgeTagModificationFocus.getModifierTag(itemStack);
+            return;
+        }
 
-            if (group != null)
+        VaultItemsHandler.appendGameLine(builder,
+            new TranslatableComponent("the_vault.gear_modification.information").withStyle(ChatFormatting.GRAY));
+        VaultGearTagConfig.ModTagGroup group = ReforgeTagModificationFocus.getModifierTag(itemStack);
+
+        if (group != null)
+        {
+            if (group.getAffixType() != null)
             {
-                getAttributes(group).forEach((attribute, items) ->
-                {
-                    VaultGearModifierReader<?> reader = attribute.getReader();
-                    builder.append(" - ").append(reader.getModifierName()).append("\n");
-                    String text = ReforgeTagModificationFocusInvoker.invokeGetItemsDisplay(items);
-                    builder.append("(").append(text).append(")").append("\n");
-                });
+                VaultItemsHandler.appendGameLine(builder,
+                    new TextComponent("Add a new " + group.getJoinedAffix() + ", guaranteeing ").withStyle(ChatFormatting.GOLD).
+                        append(group.getDisplayComponent()));
             }
+
+            VaultItemsHandler.appendGameLine(builder,
+                new TextComponent("Hold Shift + ALT for more information").withStyle(ChatFormatting.GRAY));
         }
     }
 
 
+    /**
+     * Writes a title scroll's tooltip as the game draws it.
+     *
+     * @param builder Embed Builder.
+     * @param itemStack the title scroll.
+     */
     public static void handleTitleScrollTooltip(StringBuilder builder, ItemStack itemStack)
     {
-        String abilityStr = ItemRespecFlask.getAbility(itemStack);
-
-        if (abilityStr != null)
-        {
-            ModConfigs.ABILITIES.getAbilityById(abilityStr).ifPresent((grp) ->
-            {
-                builder.append("Use to remove selected specialization").
-                    append("\n").
-                    append("of ability ").
-                    append(grp.getName());
-            });
-        }
-
-        TitleScrollItem.getOwnerUUID(itemStack).ifPresentOrElse(uuid ->
-            {
-                String name = TitleScrollItem.getOwnerName(itemStack).orElse("Unknown");
-                builder.append("Player: ").append(name).append("\n");
-            },
-            () -> builder.append("Player: ???").append("\n"));
-
+        VaultItemsHandler.appendGameLine(builder, VaultItemsHandler.ownerLine(TitleScrollItem.getOwnerUUID(itemStack).
+            map(uuid -> TitleScrollItem.getOwnerName(itemStack).orElse("Unknown")).
+            orElse(null)));
 
         PlayerTitlesConfig.Affix affix = TitleScrollItem.getAffix(itemStack).orElse(PlayerTitlesConfig.Affix.PREFIX);
         String tabText = TitleScrollItem.getTabText(itemStack).orElse(null);
-        String chatText = TitleScrollItem.getChatText(itemStack).orElse(null);
         String color = TitleScrollItem.getColor(itemStack).orElse(null);
 
-        if (tabText != null || chatText != null)
+        if (tabText != null)
         {
-            PlayerTitlesData.TitleDisplay titleDisplay = new PlayerTitlesData.TitleDisplay(tabText, chatText, color);
-            PlayerTitlesData.Entry entry = new PlayerTitlesData.Entry();
+            MutableComponent title = new TextComponent(tabText).withStyle(color == null ?
+                Style.EMPTY.applyFormat(ChatFormatting.GRAY) :
+                Style.EMPTY.withColor(TextColor.parseColor(color)));
+            MutableComponent preview = new TextComponent("");
 
             if (affix == PlayerTitlesConfig.Affix.PREFIX)
             {
-                entry.setPrefix(titleDisplay);
+                preview.append(title).append(new TextComponent("<Player>"));
             }
-            else if (affix == PlayerTitlesConfig.Affix.SUFFIX)
+            else
             {
-                entry.setSuffix(titleDisplay);
+                preview.append(new TextComponent("<Player>")).append(title);
             }
 
-            entry.getCustomName(new TextComponent("<Player>"), PlayerTitlesData.Type.TAB_LIST).
-                ifPresent(display ->
-                    builder.append("**Preview:** ").append(display.getString()).append("\n"));
+            VaultItemsHandler.appendGameLine(builder, new TextComponent("Preview: ").append(preview));
+        }
+
+        if (color == null)
+        {
+            builder.append("\n");
+            VaultItemsHandler.appendTextLine(builder,
+                new TextComponent("Combine with a dye in an anvil").withStyle(ChatFormatting.DARK_GRAY));
+            VaultItemsHandler.appendTextLine(builder,
+                new TextComponent("to set the title color.").withStyle(ChatFormatting.DARK_GRAY));
+        }
+        else
+        {
+            VaultItemsHandler.appendGameLine(builder, new TextComponent("Color: ").
+                append(new TextComponent(color).withStyle(Style.EMPTY.withColor(TextColor.parseColor(color)))));
         }
     }
 
 
+    /**
+     * The owner line of soul flames and title scrolls: the owner's name in yellow, or grey question marks without one.
+     *
+     * @param ownerName the owner's name, or null when the item has no owner.
+     * @return the line.
+     */
+    private static Component ownerLine(String ownerName)
+    {
+        MutableComponent name = ownerName == null ?
+            new TextComponent("???").withStyle(ChatFormatting.GRAY) :
+            new TextComponent(ownerName).withStyle(ChatFormatting.YELLOW);
+
+        return new TextComponent("Player: ").append(name);
+    }
+
+
+    /**
+     * Writes a soul flame's tooltip as the game draws it: owner, stacks and the crystal modifiers it carries.
+     *
+     * @param builder Embed Builder.
+     * @param itemStack the soul flame.
+     */
     public static void handleSoulFlameTooltip(StringBuilder builder, ItemStack itemStack)
     {
-        SoulFlameItem.getOwnerUUID(itemStack).ifPresentOrElse(uuid ->
-            {
-                String name = SoulFlameItem.getOwnerName(itemStack).orElse("Unknown");
-                builder.append("Player: ").append(name).append("\n");
-            },
-            () -> builder.append("Player: ???").append("\n"));
-
-        builder.append("Stacks: ").append(SoulFlameItem.getStacks(itemStack)).append("\n");
+        VaultItemsHandler.appendGameLine(builder, VaultItemsHandler.ownerLine(SoulFlameItem.getOwnerUUID(itemStack).
+            map(uuid -> SoulFlameItem.getOwnerName(itemStack).orElse("Unknown")).
+            orElse(null)));
+        VaultItemsHandler.appendGameLine(builder, new TextComponent("Stacks: ").
+            append(new TextComponent(String.valueOf(SoulFlameItem.getStacks(itemStack))).withStyle(ChatFormatting.AQUA)));
 
         SoulFlameItem.getModifiers(itemStack).ifPresent(modifiers ->
             VaultItemsHandler.parseModifiers(builder, modifiers));
@@ -1443,107 +1721,74 @@ public class VaultItemsHandler
 
     public static void handleAntiqueTooltip(StringBuilder builder, ItemStack itemStack)
     {
-        Antique antique = AntiqueItem.getAntique(itemStack);
-
-        Optional.ofNullable(antique).
-            map(Antique::getConfig).
-            map(AntiquesConfig.Entry::getInfo).
-            filter(info -> info.getRewardDescription() != null && info.getSubtext() != null).
-            ifPresent(info ->
-            {
-                builder.append("\n").append(info.getRewardDescription()).append("\n");
-                builder.append(info.getSubtext()).append("\n");
-
-                String author = antique.getAuthorName() != null ? antique.getAuthorName() : "Unknown";
-
-                builder.append("**By:** ").append(author).append("\n");
-            });
+        VaultItemsHandler.appendItemGameLines(builder, itemStack);
     }
 
 
     public static void handleJewelPouchTooltip(StringBuilder builder, ItemStack itemStack)
     {
-        String levelDescription = JewelPouchItem.getStoredLevel(itemStack).map(String::valueOf).orElse("???");
-        builder.append("**Level:** ").append(levelDescription).append("\n");
+        VaultItemsHandler.appendItemGameLines(builder, itemStack);
     }
 
 
+    /**
+     * Writes a coin pouch's own tooltip line; the coins themselves are drawn as slots in the picture.
+     *
+     * @param builder Embed Builder.
+     * @param itemStack the coin pouch.
+     */
     public static void handleCoinPouchTooltip(StringBuilder builder, ItemStack itemStack)
     {
-        ItemStack[] stacks = CoinPouchItem.getContainedStacks(itemStack);
-        String[] names = {"Bronze", "Silver", "Gold", "Platinum", "Greed Coins"};
-
-        boolean hasAny = false;
-        for (int i = stacks.length - 1; i >= 0; i--)
-        {
-            int count = stacks[i].getCount();
-            if (count > 0)
-            {
-                builder.append("**").append(names[i]).append(":** ")
-                    .append(String.format("%,d", count)).append("\n");
-                hasAny = true;
-            }
-        }
-
-        if (!hasAny)
-        {
-            builder.append("Empty\n");
-        }
+        VaultItemsHandler.appendItemGameLines(builder, itemStack);
     }
 
 
     public static void handleShardPouchTooltip(StringBuilder builder, ItemStack itemStack)
     {
         ItemStack shardStack = ItemShardPouch.getContainedStack(itemStack);
-        int count = shardStack.isEmpty() ? 0 : shardStack.getCount();
+        String text = shardStack.isEmpty() ? "Empty" :
+            shardStack.getCount() + " Shard" + (shardStack.getCount() > 1 ? "s" : "");
 
-        if (count > 0)
-        {
-            builder.append("**Soul Shards:** ").append(String.format("%,d", count)).append("\n");
-        }
-        else
-        {
-            builder.append("Empty\n");
-        }
+        VaultItemsHandler.appendGameLine(builder, new TextComponent(text).withStyle(ChatFormatting.GOLD));
     }
 
 
     public static void handleGreedyMealTooltip(StringBuilder builder, ItemStack itemStack)
     {
-        int xpAmount = itemStack.getTag().getInt("GreedXpBurger");
+        int xpAmount = itemStack.getOrCreateTag().getInt("GreedXpBurger");
 
         if (xpAmount > 0)
         {
-            builder.append("**Grants ").append(String.format("%,d", xpAmount)).append(" Vault XP**\n");
+            VaultItemsHandler.appendGameLine(builder,
+                new TextComponent("Grants " + String.format("%,d", xpAmount) + " Vault XP").withStyle(ChatFormatting.GREEN));
         }
     }
 
 
+    /**
+     * Writes a herald trophy's tooltip as the game draws it. The game shows the owner's current name when the viewer
+     * knows the player; here it is the name stored on the trophy.
+     *
+     * @param builder Embed Builder.
+     * @param itemStack the trophy.
+     */
     public static void handleHeraldTrophyTooltip(StringBuilder builder, ItemStack itemStack)
     {
         CompoundTag blockEntityTag = itemStack.getOrCreateTagElement("BlockEntityTag");
-
         String ownerName = blockEntityTag.getString("OwnerName");
 
-        if (!ownerName.isEmpty())
+        VaultItemsHandler.appendGameLine(builder, new TextComponent("Awarded to: ").append(ownerName.isEmpty() ?
+            new TextComponent("???").withStyle(ChatFormatting.GRAY) :
+            new TextComponent(ownerName).withStyle(ChatFormatting.YELLOW)));
+        VaultItemsHandler.appendGameLine(builder, new TextComponent("Time: ").
+            append(new TextComponent(VaultItemsHandler.formatTimeString(blockEntityTag.getInt("Time"))).withStyle(ChatFormatting.GRAY)));
+
+        VaultDifficulty difficulty = VaultDifficulty.byName(blockEntityTag.getString("Difficulty"));
+
+        if (difficulty != null)
         {
-            builder.append("**Awarded to:** ").append(ownerName).append("\n");
-        }
-
-        int timeTicks = blockEntityTag.getInt("Time");
-
-        if (timeTicks > 0)
-        {
-            builder.append("**Time:** ").append(VaultItemsHandler.formatTimeString(timeTicks)).append("\n");
-        }
-
-        String difficultyKey = blockEntityTag.getString("Difficulty");
-
-        if (!difficultyKey.isEmpty())
-        {
-            String displayName = difficultyKey.substring(0, 1).toUpperCase() +
-                difficultyKey.substring(1).replace("_", " ");
-            builder.append("**Difficulty:** ").append(displayName).append("\n");
+            VaultItemsHandler.appendGameLine(builder, new TextComponent("Difficulty: ").
+                append(difficulty.getDisplayName().copy().withStyle(ChatFormatting.GRAY)));
         }
     }
 
@@ -1824,56 +2069,7 @@ public class VaultItemsHandler
 
     public static void handleKeyringTooltip(StringBuilder builder, ItemStack itemStack)
     {
-        CompoundTag tag = itemStack.getTag();
-
-        if (tag == null || !tag.contains("stacks"))
-        {
-            builder.append("Empty\n");
-            return;
-        }
-
-        ListTag stacksTag = tag.getList("stacks", 10);
-        List<Map.Entry<String, Integer>> contents = new ArrayList<>();
-
-        for (int i = 0; i < stacksTag.size(); i++)
-        {
-            CompoundTag entry = stacksTag.getCompound(i);
-            int amount = entry.getInt("amount");
-
-            if (amount <= 0)
-            {
-                continue;
-            }
-
-            CompoundTag stackTag = entry.getCompound("stack");
-            String itemId = stackTag.getString("id");
-            ResourceLocation resourceLocation = ResourceLocation.tryParse(itemId);
-
-            if (resourceLocation != null)
-            {
-                Item keyItem = ForgeRegistries.ITEMS.getValue(resourceLocation);
-
-                if (keyItem != null)
-                {
-                    String displayName = new ItemStack(keyItem).getHoverName().getString();
-                    contents.add(Map.entry(displayName, amount));
-                }
-            }
-        }
-
-        if (contents.isEmpty())
-        {
-            builder.append("Empty\n");
-            return;
-        }
-
-        builder.append("**Contains:**\n");
-
-        for (Map.Entry<String, Integer> entry : contents)
-        {
-            builder.append(DOT).append(" ").append(entry.getValue()).append("x ")
-                .append(entry.getKey()).append("\n");
-        }
+        VaultItemsHandler.appendItemGameLines(builder, itemStack);
     }
 
 
@@ -1974,7 +2170,7 @@ public class VaultItemsHandler
 
     public static void handleModifierScrollTooltip(StringBuilder builder, ItemStack itemStack)
     {
-        builder.append("**Opened by** ").append(ModifierScrollItem.getPlayerName(itemStack)).append("\n");
+        VaultItemsHandler.appendItemGameLines(builder, itemStack);
     }
 
 
@@ -2317,33 +2513,49 @@ public class VaultItemsHandler
 
 
     /**
-     * This method adds crystal modifier data to the discord embed based on given filter.
+     * Writes one group of crystal modifiers under its header as the game does: each modifier indented, its count grey
+     * (always for catalyst modifiers, else only when stacked) and its name in the modifier's colour.
      * @param builder Builder that need to be populated.
-     * @param data Crystal Data object.
-     * @param header Header of elements.
-     * @param filter Filter for modifiers.
+     * @param modifiers all modifiers of the crystal.
+     * @param header the group's header.
+     * @param alwaysShowCount whether a single modifier still shows its count, as catalyst modifiers do.
+     * @param filter which modifiers belong to the group.
      */
-    private static void populateCatalystInformation(StringBuilder builder,
-        List<VaultModifierStack> data,
-        String header,
+    private static void appendModifierGroup(StringBuilder builder,
+        List<VaultModifierStack> modifiers,
+        Component header,
+        boolean alwaysShowCount,
         Predicate<VaultModifierStack> filter)
     {
-        List<VaultModifierStack> modifierList = data.stream().filter(filter).toList();
+        List<VaultModifierStack> group = modifiers.stream().filter(filter).toList();
 
-        if (!modifierList.isEmpty())
+        if (group.isEmpty())
         {
-            builder.append(header).append("\n");
+            return;
+        }
 
-            for (VaultModifierStack modifierStack : modifierList)
+        VaultItemsHandler.appendGameLine(builder, header);
+
+        for (VaultModifierStack modifierStack : group)
+        {
+            VaultModifier<?> vaultModifier = modifierStack.getModifier();
+            MutableComponent name = new TextComponent(vaultModifier.getDisplayNameFormatted(modifierStack.getSize())).
+                withStyle(Style.EMPTY.withColor(vaultModifier.getDisplayTextColor()));
+            MutableComponent line;
+
+            if (alwaysShowCount || modifierStack.getSize() > 1)
             {
-                VaultModifier<?> vaultModifier = modifierStack.getModifier();
-                String formattedName = vaultModifier.getDisplayNameFormatted(modifierStack.getSize());
-
-                builder.append("  ").
-                    append("%dx".formatted(modifierStack.getSize())).
-                    append(formattedName).
-                    append("\n");
+                line = new TextComponent("  ").withStyle(ChatFormatting.GRAY).
+                    append(new TextComponent("%dx".formatted(modifierStack.getSize())).withStyle(ChatFormatting.GRAY)).
+                    append(" ").
+                    append(name);
             }
+            else
+            {
+                line = new TextComponent("  ").append(name);
+            }
+
+            VaultItemsHandler.appendStyledLine(builder, DOT + " " + line.getString().strip(), line);
         }
     }
 
@@ -2630,82 +2842,70 @@ public class VaultItemsHandler
 
 
     /**
-     * This method parses crystal modifiers.
+     * Writes a crystal's modifiers as the game's crystal tooltip lists them: clarity and curses, then the positive,
+     * negative and other modifiers, each in the modifier's colour. Vault Hunters builds these lines on the client only,
+     * so they are rebuilt here with the same text and styles.
      * @param builder Builder that need to be populated.
      * @param modifiers The object that contains all crystal modifiers.
      */
     private static void parseModifiers(StringBuilder builder, CrystalModifiers modifiers)
     {
         List<VaultModifierStack> modifierList = new ArrayList<>();
+        modifiers.forEach(modifierList::add);
 
-        for (VaultModifierStack modifier : modifiers)
-        {
-            modifierList.add(modifier);
-        }
+        Style curseStyle = Style.EMPTY.withColor(ModConfigs.VAULT_CRYSTAL.MODIFIER_STABILITY.curseColor);
+        boolean personal = modifiers instanceof PersonalCrystalModifiers;
 
         if (modifiers instanceof ParadoxCrystalModifiers)
         {
-            VaultItemsHandler.populateCatalystInformation(builder,
+            VaultItemsHandler.appendModifierGroup(builder,
                 modifierList,
-                "**Cursed:**",
-                catalyst -> ModConfigs.VAULT_CRYSTAL_CATALYST.isCurse(catalyst.getModifierId()));
-
-            VaultItemsHandler.populateCatalystInformation(builder,
-                modifierList,
-                "**Positive Modifiers:**",
-                catalyst -> ModConfigs.VAULT_CRYSTAL_CATALYST.isGood(catalyst.getModifierId()));
-
-            VaultItemsHandler.populateCatalystInformation(builder,
-                modifierList,
-                "**Negative Modifiers:**",
-                catalyst -> ModConfigs.VAULT_CRYSTAL_CATALYST.isBad(catalyst.getModifierId()));
-
-            VaultItemsHandler.populateCatalystInformation(builder,
-                modifierList,
-                "**Other Modifiers:**",
-                catalyst -> ModConfigs.VAULT_CRYSTAL_CATALYST.isUnlisted(catalyst.getModifierId()));
+                new TextComponent("Cursed").withStyle(curseStyle),
+                true,
+                stack -> ModConfigs.VAULT_CRYSTAL_CATALYST.isCurse(stack.getModifierId()));
         }
-        else
+        else if (!personal)
         {
             if (modifiers.hasClarity())
             {
-                builder.append("*Clarity*\n");
+                VaultItemsHandler.appendGameLine(builder,
+                    new TextComponent("Clarity").withStyle(Style.EMPTY.withColor(CLARITY_COLOUR)));
             }
 
             int curseCount = modifiers.getCurseCount();
 
-            if (curseCount > 0)
+            if (curseCount > 0 && modifiers.hasClarity())
             {
-                if (modifiers.hasClarity())
-                {
-                    VaultItemsHandler.populateCatalystInformation(builder,
-                        modifierList,
-                        "**Cursed:**",
-                        catalyst -> ModConfigs.VAULT_CRYSTAL_CATALYST.isCurse(catalyst.getModifierId()));
-                }
-                else
-                {
-                    builder.append("**Cursed** ").
-                        append(CURSE.repeat(curseCount)).
-                        append("\n");
-                }
+                VaultItemsHandler.appendModifierGroup(builder,
+                    modifierList,
+                    new TextComponent("Cursed").withStyle(curseStyle),
+                    true,
+                    stack -> ModConfigs.VAULT_CRYSTAL_CATALYST.isCurse(stack.getModifierId()));
             }
-
-            VaultItemsHandler.populateCatalystInformation(builder,
-                modifierList,
-                "**Positive Modifiers:**",
-                catalyst -> ModConfigs.VAULT_CRYSTAL_CATALYST.isGood(catalyst.getModifierId()));
-
-            VaultItemsHandler.populateCatalystInformation(builder,
-                modifierList,
-                "**Negative Modifiers:**",
-                catalyst -> ModConfigs.VAULT_CRYSTAL_CATALYST.isBad(catalyst.getModifierId()));
-
-            VaultItemsHandler.populateCatalystInformation(builder,
-                modifierList,
-                "**Other Modifiers:**",
-                catalyst -> ModConfigs.VAULT_CRYSTAL_CATALYST.isUnlisted(catalyst.getModifierId()));
+            else if (curseCount > 0)
+            {
+                VaultItemsHandler.appendGameLine(builder,
+                    new TextComponent("Cursed ").withStyle(curseStyle).append(CURSE.repeat(curseCount)));
+            }
         }
+
+        String headerSuffix = personal ? "" : " Modifiers";
+
+        VaultItemsHandler.appendModifierGroup(builder,
+            modifierList,
+            new TextComponent("Positive" + headerSuffix).withStyle(ChatFormatting.GREEN),
+            true,
+            stack -> ModConfigs.VAULT_CRYSTAL_CATALYST.isGood(stack.getModifierId()));
+        VaultItemsHandler.appendModifierGroup(builder,
+            modifierList,
+            new TextComponent("Negative" + headerSuffix).withStyle(ChatFormatting.RED),
+            true,
+            stack -> ModConfigs.VAULT_CRYSTAL_CATALYST.isBad(stack.getModifierId()));
+        VaultItemsHandler.appendModifierGroup(builder,
+            modifierList,
+            new TextComponent("Other" + headerSuffix).withStyle(ChatFormatting.WHITE),
+            false,
+            stack -> ModConfigs.VAULT_CRYSTAL_CATALYST.isUnlisted(stack.getModifierId()));
     }
 
 
@@ -2721,25 +2921,6 @@ public class VaultItemsHandler
         long hours = remainingTicks / 20 / 60 / 60;
         return hours > 0L ? String.format("%02d:%02d:%02d", hours, minutes, seconds) :
             String.format("%02d:%02d", minutes, seconds);
-    }
-
-
-    private static Map<VaultGearAttribute<?>, List<Item>> getAttributes(VaultGearTagConfig.ModTagGroup tagGroup)
-    {
-        Map<VaultGearAttribute<?>, List<Item>> attributes = new LinkedHashMap<>();
-
-        ModConfigs.VAULT_GEAR_CONFIG.forEach((item, config) -> tagGroup.getTags().
-            forEach(tag -> config.getGenericGroupsWithModifierTag(tag).
-                forEach(tpl ->
-                {
-                    VaultGearAttribute<?> attribute = VaultGearAttributeRegistry.getAttribute(tpl.getB().getAttribute());
-
-                    ForgeRegistries.ITEMS.getHolder(item).ifPresent(holder ->
-                        attributes.computeIfAbsent(attribute, a -> new ArrayList<>()).
-                            add(holder.value()));
-                })));
-
-        return attributes;
     }
 
 
@@ -2776,18 +2957,40 @@ public class VaultItemsHandler
 
     private static final int INSCRIPTION_COMPLETION_COLOUR = 0x48BAF8;
 
+    /**
+     * The colours the game's crystal, relic fragment, infused catalyst and potion bottle tooltips give these texts.
+     */
+    private static final int CLARITY_COLOUR = 0x4BE3C5;
+
+    private static final int RELIC_COLOUR = 0xC6B11E;
+
+    private static final int CATALYST_SIZE_COLOUR = 0xDDDDDD;
+
+    private static final int BOTTLE_TEXT_COLOUR = 0xCFCFCF;
+
+    /**
+     * Wold's Vaults' rainbow text: the hue moves once around the circle in this time, at this saturation and brightness.
+     */
+    private static final long RAINBOW_PERIOD_MILLISECONDS = 2000L;
+
+    private static final float RAINBOW_SATURATION = 0.85F;
+
+    private static final float RAINBOW_BRIGHTNESS = 1.0F;
+
     private static final ResourceLocation GREED_TIER_ATTRIBUTE = new ResourceLocation("the_vault", "greed_tier");
 
     private static final String WOLDS_VAULTS_MOD_ID = "woldsvaults";
 
     private static final String COMBINED_TRINKET_CLASS = "xyz.iwolfking.woldsvaults.items.CombinedTrinketItem";
 
+    private static final String INFUSED_AUGMENT_CLASS = "xyz.iwolfking.woldsvaults.items.InfusedAugmentItem";
+
     private static final Logger LOGGER = LogUtils.getLogger();
 
     /**
-     * Crystal part classes whose tooltip text failed on the server, so each is logged once.
+     * Crystal part and item classes whose tooltip text failed on the server, so each is logged once.
      */
-    private static final Set<String> CRYSTAL_TEXT_FAILURES = ConcurrentHashMap.newKeySet();
+    private static final Set<String> GAME_TEXT_FAILURES = ConcurrentHashMap.newKeySet();
 
     private static final int DURABILITY_COLOUR = 0xAAAAAA;
 

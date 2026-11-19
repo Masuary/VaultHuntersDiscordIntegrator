@@ -81,7 +81,7 @@ public final class MarkdownTooltipLines
         List<List<TooltipSegment>> lines = new ArrayList<>();
         lines.add(List.of(new TooltipSegment(title, titleColour, false, false)));
 
-        for (String raw : markdown.strip().split("\n", -1))
+        for (String raw : markdown.stripTrailing().split("\n", -1))
         {
             Matcher lore = LORE.matcher(raw.strip());
 

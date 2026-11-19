@@ -15,6 +15,7 @@ import com.simibubi.create.foundation.utility.Components;
 import com.simibubi.create.foundation.utility.Lang;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.regex.Pattern;
 import net.minecraft.ChatFormatting;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.Tag;
@@ -45,7 +46,9 @@ public class CreateItemsHandler
 
                 for (Component cmp : components)
                 {
-                    sb.append(cmp.getString()).append('\n');
+                    String markdown = MARKDOWN_LIST_ITEM.matcher(cmp.getString()).replaceFirst("$1\\\\- ");
+                    sb.append(markdown).append('\n');
+                    TooltipColorHints.record(markdown.strip(), cmp);
                 }
 
                 return sb.toString();
@@ -97,7 +100,7 @@ public class CreateItemsHandler
                 {
                     if (innerStack.getItem() instanceof FilterItem)
                     {
-                        MutableComponent firstComp = Components.literal("\\- ").append(innerStack.getHoverName()).append(" ").withStyle(ChatFormatting.GRAY);
+                        MutableComponent firstComp = Components.literal("- ").append(innerStack.getHoverName()).append(" ").withStyle(ChatFormatting.GRAY);
                         List<Component> innerSummary = filterSummary(innerStack);
                         boolean isFirst = true;
 
@@ -109,7 +112,7 @@ public class CreateItemsHandler
                     }
                     else
                     {
-                        list.add(Components.literal("\\- ").append(innerStack.getHoverName()).withStyle(ChatFormatting.GRAY));
+                        list.add(Components.literal("- ").append(innerStack.getHoverName()).withStyle(ChatFormatting.GRAY));
                     }
                 }
             }
@@ -139,7 +142,7 @@ public class CreateItemsHandler
                     if (attribute != null)
                     {
                         boolean inverted = compound.getBoolean("Inverted");
-                        list.add(Components.literal("\\- ").append(format(attribute, inverted)));
+                        list.add(Components.literal("- ").append(format(attribute, inverted)));
                     }
                 }
             }
@@ -189,4 +192,11 @@ public class CreateItemsHandler
 
         return newInv;
     }
+
+
+    /**
+     * A line that Discord would read as a list item: Create's "- " entries, escaped in the markdown so they stay as the
+     * game writes them.
+     */
+    private static final Pattern MARKDOWN_LIST_ITEM = Pattern.compile("^(\\s*)- ");
 }
