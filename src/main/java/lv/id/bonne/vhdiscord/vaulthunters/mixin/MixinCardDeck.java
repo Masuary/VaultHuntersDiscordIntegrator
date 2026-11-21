@@ -22,13 +22,16 @@ import net.minecraft.world.item.TooltipFlag;
 
 /**
  * Lets the deck tooltip run on a dedicated server (this mixin is server-only): the client's Shift key reads as not held,
- * gear colours stay the game's (VH's default; its accessibility option is client-side), and each modifier writes its text
- * through {@link DeckTooltips#appendModifierText}.
+ * the greed tier is the one {@link DeckTooltips#deckLines} was asked for instead of the client's, and each modifier writes
+ * its text through {@link DeckTooltips#appendModifierText}. Since Vault Hunters 7209 the 4-argument {@code addText} only
+ * calls the 5-argument one, which holds these calls; before it (Wold's Vaults) the 4-argument one does.
  */
 @Mixin(value = CardDeck.class, remap = false)
 public abstract class MixinCardDeck
 {
-    @Redirect(method = "addText",
+    @Redirect(method = {
+            "addText(Ljava/util/List;ILnet/minecraft/world/item/TooltipFlag;FZ)V",
+            "addText(Ljava/util/List;ILnet/minecraft/world/item/TooltipFlag;F)V" },
         at = @At(value = "INVOKE", target = "Lnet/minecraft/client/gui/screens/Screen;hasShiftDown()Z", remap = true),
         require = 0)
     private boolean vhdiscord$shiftNotHeld()
@@ -37,17 +40,18 @@ public abstract class MixinCardDeck
     }
 
 
-    @Redirect(method = "addText",
-        at = @At(value = "INVOKE",
-            target = "Liskallia/vault/gear/reader/VaultGearModifierReader;applyAccessibilityColour(Lnet/minecraft/network/chat/Component;)Lnet/minecraft/network/chat/Component;"),
+    @Redirect(method = "addText(Ljava/util/List;ILnet/minecraft/world/item/TooltipFlag;FZ)V",
+        at = @At(value = "INVOKE", target = "Liskallia/vault/client/data/ClientGreedTreeData;getGreedTier()I"),
         require = 0)
-    private Component vhdiscord$gearColours(Component component)
+    private int vhdiscord$requestedGreedTier()
     {
-        return component;
+        return DeckTooltips.greedTierOfDeckText();
     }
 
 
-    @Redirect(method = "addText",
+    @Redirect(method = {
+            "addText(Ljava/util/List;ILnet/minecraft/world/item/TooltipFlag;FZ)V",
+            "addText(Ljava/util/List;ILnet/minecraft/world/item/TooltipFlag;F)V" },
         at = @At(value = "INVOKE",
             target = "Liskallia/vault/core/card/modifier/deck/DeckModifier;addText(Ljava/util/List;ILnet/minecraft/world/item/TooltipFlag;F)V"),
         require = 0)

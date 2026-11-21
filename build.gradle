@@ -140,8 +140,8 @@ dependencies {
     // mixin
     annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
 
-    // Vault Hunters - local jar (3.21.2.6474)
-    implementation fg.deobf("the_vault:the_vault:1.18.2-3.21.2.6474")
+    // Vault Hunters Remastered - local jar (22.0.0-remastered.7209, Skyvault Update 4)
+    implementation fg.deobf("the_vault:the_vault:1.18.2-22.0.0-remastered.7209")
     implementation fg.deobf("curse.maven:dcintegration-324952:${dcintegration}")
     implementation fg.deobf("curse.maven:mc2discord-325235:${mc2discord}")
     implementation fg.deobf("curse.maven:simple-discord-link-bot-forge-fabric-spigot-541320:${sdlink}")
@@ -155,7 +155,7 @@ dependencies {
     // PlayerListBroadcastMixin, configured sources including iskallia.vault), so this fork no longer
     // mixes into PlayerList for that; it only attaches item tooltips via ChatRelayEvent.
     compileOnly files(providers.gradleProperty('masuchatlink_jar').getOrElse(
-            '/mnt/data/Minecraft/Mods/MasuChatLink/build/libs/masuchatlink-1.2.0.jar'))
+            '/mnt/data/Minecraft/Mods/MasuChatLink/build/libs/masuchatlink-1.3.0.jar'))
 
 //    Dependencies for Runtime Debug
 //    implementation fg.deobf("curse.maven:architects-palette-433862:4498424")

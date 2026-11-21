@@ -43,26 +43,25 @@ When adding support for a new item type:
 2. Create a `handle<ItemType>Tooltip(StringBuilder, ItemStack)` method
 3. Write every line through `appendGameLine(builder, Component)` (`**Label:** value` markdown) or `appendStyledLine(builder, markdown, Component)`, never plain `builder.append`: they record the line's styled runs, and `MarkdownTooltipLines` draws a recorded line exactly in MasuChatLink's in-game picture. Unrecorded lines come out white.
 4. Prefer calling the game's own text code when it is server-safe (no `@OnlyIn(CLIENT)`, `Screen`, `Minecraft`, `ClientScheduler`, client data), guarded like `crystalGameLines` (fallback, logged once per class); otherwise rebuild the same Components with the colours from the decompiled game source.
-5. The mod runs on Vault Hunters Remastered (Skyvault) and Wold's Vaults: a Wold's-only layout is chosen with `ModList.get().isLoaded(WOLDS_VAULTS_MOD_ID)` and Wold's classes are only reached by reflection.
+5. The mod runs on Vault Hunters Remastered (Skyvault) and Wold's Vaults: a Wold's-only layout is chosen with `ModList.get().isLoaded(WOLDS_VAULTS_MOD_ID)` and Wold's classes are only reached by reflection. It compiles against Remastered 7209; item API that 7209 removed but Wold's Vaults (VH 3.21) still has (old potion bottles, soul flame owner, shard pouch stack, tierless deck attributes) is reached by reflection in `parser/LegacyVaultItemApi`, checked with its `has...()` methods before the 7209 path. Values the game works out per player (potion charges and effects, a deck's greed bonus) are read for the linking player passed to `generateVaultHuntersItemTooltips(..., ServerPlayer)`.
 6. Write only the item's own lines: `generateVaultHuntersItemTooltips` adds the lines client tooltip events add in game (Curios `Slot:` line, VH's Soul Value from `vault_diffuser`, VH's `tooltip` config description and blank line) through `withClientEventLines`; items this handler does not describe get them above MasuChatLink's server lines in `MasuChatLinkEventListener`.
 7. Check a change with a throwaway server probe on the Wolds HUB test copy, never committed: `/mnt/data/AI/work/masuchatlink-crystal-tooltip-2026-11-19/run-probe.sh` with `round3/RealItemProbe.java` runs every item in the world's saved inventories through the listener's path; `stop-probe.sh` restores the server.
 
 ## Dependencies
 
-### Vault Hunters Version Mismatch
+### Vault Hunters Version
 
-**The decompiled VH source in `C:\Users\Masuary\.claude\docs\mods\Forge 1.18\decompiled\the_vault-decompiled\` is from a NEWER version than what this project compiles against.**
+- Project dependency: local jar `libs/the_vault-1.18.2-22.0.0-remastered.7209.jar` (Vault Hunters Remastered 7209, Skyvault Update 4; gitignored, resolved through the `libs` flatDir as `the_vault:the_vault:1.18.2-22.0.0-remastered.7209`). Copy it from `/mnt/data/Projects/skyvault-update4-2026-11-20/2-jar-diff/jars/new/`.
+- Decompiled 7209 source: `git show new:iskallia/vault/<path>` in `/mnt/data/Projects/skyvault-update4-2026-11-20/2-jar-diff/source-diff` (tag `old` = 6956).
+- Wold's Vaults runs Vault Hunters 3.21.6 (`/mnt/data/Minecraft/Servers/Wolds/servers/ZEST/mods/the_vault-1.18.2-3.21.6.6884.jar`): check a built jar against it with `~/.claude/tools/jar-link-check --package iskallia/vault/ --target <that jar> build/libs/vhdiscord-<version>.jar`; only the 7209 paths behind `LegacyVaultItemApi` may be missing there.
 
-- Project dependency: `curse.maven:vault-hunters-official-mod-458203:6802790`
-- Decompiled source: newer version with additional APIs (e.g., `CardDeck.getSocketCount()`)
-
-Always verify methods exist in the actual compiled dependency before using them. If a method exists in the decompiled source but fails to compile, it was added in a later VH version.
+Always verify methods exist in the actual compiled dependency before using them.
 
 ### Dependency Versions (gradle.properties)
 
 | Dependency | CurseForge File ID |
 |---|---|
-| Vault Hunters | 6802790 (hardcoded in build.gradle) |
+| Vault Hunters | Remastered 7209 local jar (hardcoded in build.gradle) |
 | DCIntegration | 4775508 |
 | MC2Discord | 4769533 |
 | SDLink | 4777012 |

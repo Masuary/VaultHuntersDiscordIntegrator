@@ -59,6 +59,11 @@ import iskallia.vault.gear.trinket.TrinketEffect;
 import iskallia.vault.init.*;
 import iskallia.vault.item.*;
 import iskallia.vault.item.bottle.BottleItem;
+import iskallia.vault.item.bottle.DrinkMode;
+import iskallia.vault.item.bottle.PotionEffect;
+import iskallia.vault.item.bottle.PotionEffectDisplay;
+import iskallia.vault.item.bottle.PotionRolls;
+import iskallia.vault.item.bottle.PotionTiers;
 import iskallia.vault.item.crystal.CrystalData;
 import iskallia.vault.item.crystal.CrystalEntry;
 import iskallia.vault.item.crystal.VaultCrystalItem;
@@ -104,6 +109,7 @@ import iskallia.vault.item.SigilItem;
 import iskallia.vault.item.tool.JewelItem;
 import iskallia.vault.item.tool.PaxelItem;
 import iskallia.vault.util.MiscUtils;
+import iskallia.vault.util.PlayerRecoveryHelper;
 import iskallia.vault.util.TextUtil;
 import iskallia.vault.util.Throuple;
 import iskallia.vault.world.VaultDifficulty;
@@ -116,6 +122,7 @@ import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.network.chat.*;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.effect.MobEffect;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.item.Item;
@@ -142,7 +149,25 @@ public class VaultItemsHandler
         ItemStack itemStack,
         CompoundTag itemTag)
     {
-        String description = VaultItemsHandler.describeItem(itemJson, itemStack, itemTag);
+        return VaultItemsHandler.generateVaultHuntersItemTooltips(itemJson, itemStack, itemTag, null);
+    }
+
+
+    /**
+     * This method generates string with tooltip of given item stack, with the values the game works out for a player
+     * (potion charges, healing and effects, a deck's greed bonus) read for the player who linked the item.
+     * @param itemJson Item Json object.
+     * @param itemStack Item Stack object.
+     * @param itemTag Item Compound Tag
+     * @param linkingPlayer the player who linked the item, or null when unknown.
+     * @return String with a tooltip
+     */
+    public static String generateVaultHuntersItemTooltips(JsonObject itemJson,
+        ItemStack itemStack,
+        CompoundTag itemTag,
+        ServerPlayer linkingPlayer)
+    {
+        String description = VaultItemsHandler.describeItem(itemJson, itemStack, itemTag, linkingPlayer);
         return description == null ? null : VaultItemsHandler.withClientEventLinesOrOwn(description, itemStack);
     }
 
@@ -309,12 +334,14 @@ public class VaultItemsHandler
      * @param itemJson Item Json object.
      * @param itemStack Item Stack object.
      * @param itemTag Item Compound Tag
+     * @param linkingPlayer the player who linked the item, or null when unknown.
      * @return the item's lines as markdown, or null when this handler does not describe the item.
      */
     @SuppressWarnings("deprecation")
     private static String describeItem(JsonObject itemJson,
         ItemStack itemStack,
-        CompoundTag itemTag)
+        CompoundTag itemTag,
+        ServerPlayer linkingPlayer)
     {
         try
         {
@@ -327,7 +354,7 @@ public class VaultItemsHandler
             }
             else if (itemStack.getItem() instanceof BottleItem)
             {
-                VaultItemsHandler.handleBottleTooltip(builder, itemStack);
+                VaultItemsHandler.handleBottleTooltip(builder, itemStack, linkingPlayer);
                 return builder.toString();
             }
             else if (itemStack.getItem() instanceof EtchingItem)
@@ -422,7 +449,7 @@ public class VaultItemsHandler
             }
             else if (itemStack.getItem() instanceof CardDeckItem)
             {
-                VaultItemsHandler.handleCardDeckTooltip(builder, itemStack);
+                VaultItemsHandler.handleCardDeckTooltip(builder, itemStack, linkingPlayer);
                 return builder.toString();
             }
             else if (itemStack.getItem() instanceof ModifierScrollItem)
@@ -774,12 +801,15 @@ public class VaultItemsHandler
 
 
     /**
-     * Writes a potion bottle's tooltip as the game draws it, without the recharge progress line the game counts for the
-     * viewer.
+     * Writes a potion bottle's tooltip as the game draws it. Since Vault Hunters 7209 the charges, healing and effects
+     * depend on the player, so they are the linking player's; the viewer's key bind line is left out. Older builds
+     * (Wold's Vaults) write the bottle's recharge kind, healing and effect, without the recharge progress line the game
+     * counts for the viewer.
      * @param builder Embed Builder.
      * @param itemStack Bottle Item.
+     * @param linkingPlayer the player who linked the bottle, or null when unknown (no lines on 7209).
      */
-    public static void handleBottleTooltip(StringBuilder builder, ItemStack itemStack)
+    public static void handleBottleTooltip(StringBuilder builder, ItemStack itemStack, ServerPlayer linkingPlayer)
     {
         if (ModConfigs.POTION == null)
         {
@@ -787,17 +817,124 @@ public class VaultItemsHandler
             return;
         }
 
-        BottleItem.getType(itemStack).ifPresent(type ->
+        if (LegacyVaultItemApi.hasBottleTypes())
         {
-            BottleItem.getRecharge(itemStack).ifPresent(recharge ->
+            VaultItemsHandler.appendTypedBottleLines(builder, itemStack);
+        }
+        else if (linkingPlayer != null && ModConfigs.VAULT_ALCHEMY_TABLE != null)
+        {
+            VaultItemsHandler.appendPlayerBottleLines(builder, itemStack, linkingPlayer);
+        }
+    }
+
+
+    /**
+     * The bottle lines of Vault Hunters 7209 for one player: charges, drink mode, healing, the slotted and infused
+     * effects, how it fills and, in a vault, how far the next charge is.
+     *
+     * @param builder Embed Builder.
+     * @param itemStack the bottle.
+     * @param player the player the values are worked out for.
+     */
+    private static void appendPlayerBottleLines(StringBuilder builder, ItemStack itemStack, ServerPlayer player)
+    {
+        int charges = BottleItem.getCharges(player, itemStack);
+        int maxCharges = BottleItem.getMaxCharges(player, itemStack);
+        DrinkMode drinkMode = BottleItem.getDrinkMode(itemStack);
+        float healing = PotionTiers.tierOf(player).getHeal() * (1.0F + PlayerRecoveryHelper.getHealingEfficiency(player));
+
+        VaultItemsHandler.appendTextLine(builder, VaultItemsHandler.bottleLabelled("Charges",
+            new TextComponent(charges + " / " + maxCharges).withStyle(Style.EMPTY.withColor(POTION_VALUE_COLOUR))));
+        VaultItemsHandler.appendTextLine(builder, VaultItemsHandler.bottleLabelled("Drink Mode",
+            new TextComponent(drinkMode.getDisplayName()).withStyle(Style.EMPTY.withColor(drinkMode.getColor()))));
+        builder.append("\n");
+        VaultItemsHandler.appendTextLine(builder, new TextComponent("Heals  ").withStyle(Style.EMPTY.withColor(POTION_VALUE_COLOUR)).
+            append(new TextComponent(Math.round(healing) + " Hit Points").withStyle(ChatFormatting.RED)));
+        VaultItemsHandler.appendBottleEffectLines(builder, itemStack, player);
+        builder.append("\n");
+        VaultItemsHandler.appendTextLine(builder,
+            new TextComponent("Fills from kills and chests in a vault").withStyle(ChatFormatting.GRAY));
+        VaultItemsHandler.appendTextLine(builder, new TextComponent("Right-click to equip it").withStyle(ChatFormatting.DARK_GRAY));
+
+        if (BottleItem.getBoundVault(itemStack).isPresent())
+        {
+            boolean full = charges >= maxCharges;
+            String fill = full ? "100%" : Math.round(BottleItem.getFill(itemStack) * 100.0F) + "%";
+
+            VaultItemsHandler.appendTextLine(builder, new TextComponent((full ? "Full" : "Next charge") + "  ").withStyle(ChatFormatting.GRAY).
+                append(new TextComponent(fill).withStyle(Style.EMPTY.withColor(POTION_FILL_COLOUR))));
+        }
+    }
+
+
+    /**
+     * One line per effect slot the player's potion tier has (an effect the player has not unlocked, or one already
+     * shown, is an empty slot), then the infused effect.
+     *
+     * @param builder Embed Builder.
+     * @param itemStack the bottle.
+     * @param player the player the values are worked out for.
+     */
+    private static void appendBottleEffectLines(StringBuilder builder, ItemStack itemStack, ServerPlayer player)
+    {
+        List<PotionEffect> shownEffects = new ArrayList<>();
+
+        for (Optional<PotionEffect> slot : BottleItem.getSlotEffects(itemStack, PotionTiers.slotCountOf(player)))
+        {
+            Optional<PotionEffect> effect =
+                slot.filter(candidate -> !shownEffects.contains(candidate) && PotionRolls.isUnlocked(player, candidate));
+
+            if (effect.isPresent())
+            {
+                shownEffects.add(effect.get());
+                VaultItemsHandler.appendTextLine(builder,
+                    VaultItemsHandler.bottleEffectLine(player, effect.get(), PotionRolls.valueOf(player, effect.get())));
+            }
+            else
+            {
+                VaultItemsHandler.appendTextLine(builder, new TextComponent("Empty slot").withStyle(ChatFormatting.DARK_GRAY));
+            }
+        }
+
+        BottleItem.getInfused(itemStack).ifPresent(infusion -> VaultItemsHandler.appendTextLine(builder,
+            VaultItemsHandler.bottleEffectLine(player, infusion.effect(), infusion.roll()).
+                append(new TextComponent("  Infused").withStyle(ChatFormatting.DARK_GRAY))));
+    }
+
+
+    private static MutableComponent bottleEffectLine(ServerPlayer player, PotionEffect effect, int value)
+    {
+        return PotionEffectDisplay.descriptionOf(player, effect, value).
+            withStyle(Style.EMPTY.withColor(PotionEffectDisplay.colorOf(effect)));
+    }
+
+
+    private static MutableComponent bottleLabelled(String label, Component value)
+    {
+        return new TextComponent(label + "  ").withStyle(ChatFormatting.GRAY).append(value);
+    }
+
+
+    /**
+     * The bottle lines of Vault Hunters before 7209 (Wold's Vaults): how the bottle restores charges, what a charge
+     * heals and the bottle's effect.
+     *
+     * @param builder Embed Builder.
+     * @param itemStack the bottle.
+     */
+    private static void appendTypedBottleLines(StringBuilder builder, ItemStack itemStack)
+    {
+        LegacyVaultItemApi.bottleType(itemStack).ifPresent(type ->
+        {
+            LegacyVaultItemApi.bottleRechargeName(itemStack).ifPresent(recharge ->
             {
                 switch (recharge)
                 {
-                    case TIME -> VaultItemsHandler.appendTextLine(builder,
+                    case "TIME" -> VaultItemsHandler.appendTextLine(builder,
                         new TextComponent("Passively restores charges while inside a vault").withStyle(ChatFormatting.GRAY));
-                    case MOBS -> VaultItemsHandler.appendTextLine(builder,
+                    case "MOBS" -> VaultItemsHandler.appendTextLine(builder,
                         new TextComponent("Kill vault mobs to restore charges").withStyle(ChatFormatting.GRAY));
-                    case CHESTS -> VaultItemsHandler.appendTextLine(builder,
+                    case "CHESTS" -> VaultItemsHandler.appendTextLine(builder,
                         new TextComponent("Loot vault chests to restore charges").withStyle(ChatFormatting.GRAY));
                 }
             });
@@ -807,12 +944,12 @@ public class VaultItemsHandler
                 append(new TextComponent(" to")).
                 withStyle(Style.EMPTY.withColor(BOTTLE_TEXT_COLOUR)));
             VaultItemsHandler.appendTextLine(builder, new TextComponent(" " + DOT + " Heal ").
-                append(new TextComponent(String.valueOf(ModConfigs.POTION.getPotion(type).getHealing()))).
+                append(new TextComponent(String.valueOf(LegacyVaultItemApi.bottleHealing(type)))).
                 append(new TextComponent(" Hit Points")).
                 withStyle(ChatFormatting.GREEN));
 
-            BottleItem.getEffect(itemStack).ifPresent(effect ->
-                VaultItemsHandler.appendTextLine(builder, new TextComponent(" " + DOT + " ").append(effect.getTooltip())));
+            LegacyVaultItemApi.bottleEffectTooltip(itemStack).ifPresent(effect ->
+                VaultItemsHandler.appendTextLine(builder, new TextComponent(" " + DOT + " ").append(effect)));
         });
     }
 
@@ -1970,20 +2107,37 @@ public class VaultItemsHandler
 
 
     /**
-     * Writes a soul flame's tooltip as the game draws it: owner, stacks and the crystal modifiers it carries.
+     * Writes a soul flame's tooltip as the game draws it: since Vault Hunters 7209 the embers it turns into; on older
+     * builds (Wold's Vaults) its owner, stacks and the crystal modifiers it carries.
      *
      * @param builder Embed Builder.
      * @param itemStack the soul flame.
      */
     public static void handleSoulFlameTooltip(StringBuilder builder, ItemStack itemStack)
     {
-        VaultItemsHandler.appendGameLine(builder, VaultItemsHandler.ownerLine(SoulFlameItem.getOwnerUUID(itemStack).
-            map(uuid -> SoulFlameItem.getOwnerName(itemStack).orElse("Unknown")).
+        if (LegacyVaultItemApi.hasSoulFlameOwner())
+        {
+            VaultItemsHandler.appendOwnedSoulFlameLines(builder, itemStack);
+        }
+        else if (ModConfigs.isInitialized())
+        {
+            VaultItemsHandler.appendTextLine(builder, new TextComponent("Turns into ").withStyle(ChatFormatting.GRAY).
+                append(new TextComponent(String.valueOf(SoulFlameItem.getEmberValue(itemStack) * itemStack.getCount())).
+                    withStyle(ChatFormatting.GOLD)).
+                append(new TextComponent(" Embers when carried").withStyle(ChatFormatting.GRAY)));
+        }
+    }
+
+
+    private static void appendOwnedSoulFlameLines(StringBuilder builder, ItemStack itemStack)
+    {
+        VaultItemsHandler.appendGameLine(builder, VaultItemsHandler.ownerLine(LegacyVaultItemApi.soulFlameOwnerUuid(itemStack).
+            map(uuid -> LegacyVaultItemApi.soulFlameOwnerName(itemStack).orElse("Unknown")).
             orElse(null)));
         VaultItemsHandler.appendGameLine(builder, new TextComponent("Stacks: ").
             append(new TextComponent(String.valueOf(SoulFlameItem.getStacks(itemStack))).withStyle(ChatFormatting.AQUA)));
 
-        SoulFlameItem.getModifiers(itemStack).ifPresent(modifiers ->
+        LegacyVaultItemApi.soulFlameModifiers(itemStack).ifPresent(modifiers ->
             VaultItemsHandler.parseModifiers(builder, modifiers));
     }
 
@@ -2012,13 +2166,31 @@ public class VaultItemsHandler
     }
 
 
+    /**
+     * Writes a shard pouch's tooltip as the game draws it: since Vault Hunters 7209 its soul shard count and that it
+     * becomes a vault pouch; on older builds (Wold's Vaults) the shards it holds.
+     *
+     * @param builder Embed Builder.
+     * @param itemStack the shard pouch.
+     */
     public static void handleShardPouchTooltip(StringBuilder builder, ItemStack itemStack)
     {
-        ItemStack shardStack = ItemShardPouch.getContainedStack(itemStack);
-        String text = shardStack.isEmpty() ? "Empty" :
-            shardStack.getCount() + " Shard" + (shardStack.getCount() > 1 ? "s" : "");
+        if (LegacyVaultItemApi.hasShardPouchStack())
+        {
+            ItemStack shardStack = LegacyVaultItemApi.shardPouchContainedStack(itemStack);
+            String text = shardStack.isEmpty() ? "Empty" :
+                shardStack.getCount() + " Shard" + (shardStack.getCount() > 1 ? "s" : "");
 
-        VaultItemsHandler.appendGameLine(builder, new TextComponent(text).withStyle(ChatFormatting.GOLD));
+            VaultItemsHandler.appendGameLine(builder, new TextComponent(text).withStyle(ChatFormatting.GOLD));
+            return;
+        }
+
+        int shards = ItemShardPouch.getStoredShardCount(itemStack);
+
+        VaultItemsHandler.appendGameLine(builder,
+            new TextComponent(shards + " Soul Shard" + (shards == 1 ? "" : "s")).withStyle(ChatFormatting.GOLD));
+        VaultItemsHandler.appendTextLine(builder,
+            new TextComponent("Becomes a Vault Pouch in your inventory").withStyle(ChatFormatting.GRAY));
     }
 
 
@@ -2456,11 +2628,20 @@ public class VaultItemsHandler
     }
 
 
+    /**
+     * Writes a card deck's cards, attributes, sockets and modifiers. Since Vault Hunters 7209 the attributes include the
+     * greed bonus of the linking player's greed tier.
+     *
+     * @param builder Embed Builder.
+     * @param itemStack the deck.
+     * @param linkingPlayer the player who linked the deck, or null when unknown (greed tier 0).
+     */
     @SuppressWarnings({"rawtypes", "unchecked"})
-    public static void handleCardDeckTooltip(StringBuilder builder, ItemStack itemStack)
+    public static void handleCardDeckTooltip(StringBuilder builder, ItemStack itemStack, ServerPlayer linkingPlayer)
     {
         CardDeckItem.getCardDeck(itemStack).ifPresent(deck ->
         {
+            int greedTier = DeckTooltips.greedTierOf(linkingPlayer);
             Map<CardPos, Card> cards = deck.getCards();
             long filledSlots = cards.values().stream().
                 filter(card -> card != null && !card.getEntries().isEmpty()).count();
@@ -2490,7 +2671,9 @@ public class VaultItemsHandler
                 builder.append("\n");
             }
 
-            List<VaultGearAttributeInstance<?>> attributes = deck.getSnapshotAttributes();
+            List<VaultGearAttributeInstance<?>> attributes = LegacyVaultItemApi.hasTierlessDeckAttributes() ?
+                LegacyVaultItemApi.deckSnapshotAttributes(deck) :
+                deck.getSnapshotAttributes(greedTier);
 
             if (!attributes.isEmpty())
             {
@@ -2511,7 +2694,7 @@ public class VaultItemsHandler
                 builder.append("\n");
             }
 
-            VaultItemsHandler.appendDeckSockets(builder, DeckTooltips.deckLines(deck));
+            VaultItemsHandler.appendDeckSockets(builder, DeckTooltips.deckLines(deck, greedTier));
         });
     }
 
@@ -3249,6 +3432,10 @@ public class VaultItemsHandler
     private static final int CATALYST_SIZE_COLOUR = 0xDDDDDD;
 
     private static final int BOTTLE_TEXT_COLOUR = 0xCFCFCF;
+
+    private static final int POTION_VALUE_COLOUR = 0xFFFFFF;
+
+    private static final int POTION_FILL_COLOUR = 0xF670DB;
 
     /**
      * Wold's Vaults' rainbow text: the hue moves once around the circle in this time, at this saturation and brightness.

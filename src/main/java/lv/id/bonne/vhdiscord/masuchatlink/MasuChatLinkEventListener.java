@@ -150,7 +150,7 @@ public class MasuChatLinkEventListener
 
             try
             {
-                description = VaultItemsHandler.generateVaultHuntersItemTooltips(itemJson, itemStack, itemTag);
+                description = VaultItemsHandler.generateVaultHuntersItemTooltips(itemJson, itemStack, itemTag, event.getPlayer());
 
                 if (description == null || description.isBlank())
                 {
@@ -183,7 +183,7 @@ public class MasuChatLinkEventListener
 
             List<List<TooltipSegment>> serverLines = generic == null || generic.lines() == null ? List.of() : generic.lines();
             List<TooltipSegment> modLine = serverLines.isEmpty() ? null : serverLines.get(serverLines.size() - 1);
-            Optional<DeckPicture.Picture> deck = DeckPicture.of(itemStack, modLine);
+            Optional<DeckPicture.Picture> deck = DeckPicture.of(itemStack, modLine, event.getPlayer());
 
             event.setItem(new ChatRelayItem(title,
                 this.colourOf(itemStack),

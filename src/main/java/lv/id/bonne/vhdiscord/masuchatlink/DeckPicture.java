@@ -24,6 +24,7 @@ import lv.id.bonne.vhdiscord.parser.DeckTooltips;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.Style;
 import net.minecraft.network.chat.TextColor;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.ItemStack;
 
 
@@ -70,9 +71,10 @@ public final class DeckPicture
      *
      * @param itemStack the item.
      * @param modLine the mod name line MasuChatLink added, or null.
+     * @param linkingPlayer the player who linked the deck, whose greed tier the stats are worked out for, or null.
      * @return the picture, or empty when the item holds no deck.
      */
-    public static Optional<Picture> of(ItemStack itemStack, List<TooltipSegment> modLine)
+    public static Optional<Picture> of(ItemStack itemStack, List<TooltipSegment> modLine, ServerPlayer linkingPlayer)
     {
         if (!(itemStack.getItem() instanceof CardDeckItem))
         {
@@ -81,7 +83,7 @@ public final class DeckPicture
 
         return CardDeckItem.getCardDeck(itemStack).map(deck ->
         {
-            List<List<TooltipSegment>> lines = DeckPicture.statsLines(deck);
+            List<List<TooltipSegment>> lines = DeckPicture.statsLines(deck, DeckTooltips.greedTierOf(linkingPlayer));
 
             if (modLine != null)
             {
@@ -256,13 +258,14 @@ public final class DeckPicture
      * modifier does.
      *
      * @param deck the deck.
+     * @param greedTier the greed tier the attributes' greed bonus is worked out for.
      * @return the lines.
      */
-    private static List<List<TooltipSegment>> statsLines(CardDeck deck)
+    private static List<List<TooltipSegment>> statsLines(CardDeck deck, int greedTier)
     {
         List<List<TooltipSegment>> lines = new ArrayList<>();
 
-        for (Component line : DeckTooltips.deckLines(deck))
+        for (Component line : DeckTooltips.deckLines(deck, greedTier))
         {
             lines.add(DeckPicture.segmentsOf(line));
         }

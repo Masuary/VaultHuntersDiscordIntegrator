@@ -17,8 +17,10 @@ import org.slf4j.Logger;
 
 import iskallia.vault.core.card.CardDeck;
 import iskallia.vault.core.card.modifier.deck.DeckModifier;
+import iskallia.vault.world.data.PlayerGreedTreeData;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.TextComponent;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.TooltipFlag;
 
 
@@ -40,6 +42,12 @@ public final class DeckTooltips
      */
     private static final Set<Class<?>> FAILED_MODIFIERS = ConcurrentHashMap.newKeySet();
 
+    /**
+     * The greed tier the deck text being built on this thread is worked out for; the game reads the client's own tier,
+     * which a server does not have.
+     */
+    private static final ThreadLocal<Integer> GREED_TIER_OF_DECK_TEXT = ThreadLocal.withInitial(() -> 0);
+
 
     private DeckTooltips()
     {
@@ -50,13 +58,49 @@ public final class DeckTooltips
      * The deck's tooltip lines: attributes, resource card rewards, sockets and what each modifier does.
      *
      * @param deck the deck.
+     * @param greedTier the greed tier the attributes' greed bonus is worked out for (Vault Hunters 7209 and later).
      * @return the lines, blank lines included.
      */
-    public static List<Component> deckLines(CardDeck deck)
+    public static List<Component> deckLines(CardDeck deck, int greedTier)
     {
         List<Component> lines = new ArrayList<>();
-        deck.addText(lines, 0, TooltipFlag.Default.NORMAL, 0f);
+        Integer previousGreedTier = GREED_TIER_OF_DECK_TEXT.get();
+        GREED_TIER_OF_DECK_TEXT.set(greedTier);
+
+        try
+        {
+            deck.addText(lines, 0, TooltipFlag.Default.NORMAL, 0f);
+        }
+        finally
+        {
+            GREED_TIER_OF_DECK_TEXT.set(previousGreedTier);
+        }
+
         return lines;
+    }
+
+
+    /**
+     * The greed tier the deck text being built on this thread is worked out for, read by
+     * {@link lv.id.bonne.vhdiscord.vaulthunters.mixin.MixinCardDeck} in place of the client's tier.
+     *
+     * @return the greed tier, 0 outside {@link #deckLines}.
+     */
+    public static int greedTierOfDeckText()
+    {
+        return GREED_TIER_OF_DECK_TEXT.get();
+    }
+
+
+    /**
+     * A player's greed tier as the server keeps it.
+     *
+     * @param player the player, or null when unknown.
+     * @return the greed tier, 0 for an unknown player.
+     */
+    public static int greedTierOf(ServerPlayer player)
+    {
+        return player == null ? 0 : PlayerGreedTreeData.get(player.server).getGreedTier(player);
     }
 
 

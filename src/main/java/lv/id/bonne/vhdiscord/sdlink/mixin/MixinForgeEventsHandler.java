@@ -143,7 +143,8 @@ public class MixinForgeEventsHandler
 
             String description = VaultItemsHandler.generateVaultHuntersItemTooltips(itemJson,
                 itemStack,
-                itemTag);
+                itemTag,
+                player);
 
             if (description != null && !description.isBlank())
             {
