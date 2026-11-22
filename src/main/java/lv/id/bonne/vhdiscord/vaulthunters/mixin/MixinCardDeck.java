@@ -15,16 +15,18 @@ import org.spongepowered.asm.mixin.injection.Redirect;
 
 import iskallia.vault.core.card.CardDeck;
 import iskallia.vault.core.card.modifier.deck.DeckModifier;
-import lv.id.bonne.vhdiscord.parser.DeckTooltips;
+import lv.id.bonne.vhdiscord.vaulthunters.DeckModifierTextWriter;
+import lv.id.bonne.vhdiscord.vaulthunters.DeckTextGreedTier;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.TooltipFlag;
 
 
 /**
  * Lets the deck tooltip run on a dedicated server (this mixin is server-only): the client's Shift key reads as not held,
- * the greed tier is the one {@link DeckTooltips#deckLines} was asked for instead of the client's, and each modifier writes
- * its text through {@link DeckTooltips#appendModifierText}. Since Vault Hunters 7209 the 4-argument {@code addText} only
- * calls the 5-argument one, which holds these calls; before it (Wold's Vaults) the 4-argument one does.
+ * the greed tier is the one in {@link DeckTextGreedTier} (set by the parser's deck tooltip) instead of the client's, and
+ * each modifier writes its text through {@link DeckModifierTextWriter}. Since Vault Hunters 7209
+ * the 4-argument {@code addText} only calls the 5-argument one, which holds these calls; before it (Wold's Vaults) the
+ * 4-argument one does.
  */
 @Mixin(value = CardDeck.class, remap = false)
 public abstract class MixinCardDeck
@@ -45,7 +47,7 @@ public abstract class MixinCardDeck
         require = 0)
     private int vhdiscord$requestedGreedTier()
     {
-        return DeckTooltips.greedTierOfDeckText();
+        return DeckTextGreedTier.get();
     }
 
 
@@ -57,6 +59,6 @@ public abstract class MixinCardDeck
         require = 0)
     private void vhdiscord$modifierText(DeckModifier<?> modifier, List<Component> tooltip, int minIndex, TooltipFlag flag, float time)
     {
-        DeckTooltips.appendModifierText(modifier, tooltip, minIndex, flag, time);
+        DeckModifierTextWriter.write(modifier, tooltip, minIndex, flag, time);
     }
 }

@@ -19,7 +19,7 @@ import net.minecraft.world.item.TooltipFlag;
 /**
  * VH marks {@code DeckModifier#addText} client-only, so Forge strips it from the class on a dedicated server, while the
  * modifiers that override it still call it and the deck tooltip calls it on every modifier. This server-only mixin puts it
- * back with the game's own empty body, so {@link lv.id.bonne.vhdiscord.parser.DeckTooltips} can run the deck's text.
+ * back with the game's own empty body, so the parser's {@code DeckTooltips} can run the deck's text.
  */
 @Mixin(value = DeckModifier.class, remap = false)
 public abstract class MixinDeckModifier

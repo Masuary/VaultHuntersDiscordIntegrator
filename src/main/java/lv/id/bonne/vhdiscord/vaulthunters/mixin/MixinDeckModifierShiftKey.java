@@ -17,7 +17,7 @@ import org.spongepowered.asm.mixin.injection.Redirect;
  * Every deck modifier's text asks the client whether Shift is held (to add roll ranges); on a dedicated server that class
  * does not exist. This server-only mixin answers "not held" in the modifiers of VH and of Wold's Vaults, which is only
  * present on that pack (hence {@link Pseudo}). A modifier missing here falls back in
- * {@link lv.id.bonne.vhdiscord.parser.DeckTooltips#appendModifierText}.
+ * the parser's {@code DeckTooltips.appendModifierText}.
  */
 @Pseudo
 @Mixin(targets = {
