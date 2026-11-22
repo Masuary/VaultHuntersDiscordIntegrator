@@ -7,7 +7,6 @@
 package lv.id.bonne.vhdiscord.vaulthunters;
 
 import lv.id.bonne.vhdiscord.config.MixinConfigPlugin;
-import net.minecraftforge.fml.loading.LoadingModList;
 
 
 

@@ -58,7 +58,9 @@ import top.theillusivec4.curios.api.CuriosApi;
 
 
 /**
- * This class allows to parse VaultHunters item tooltips to discord chat.
+ * This class allows to parse VaultHunters item tooltips to discord chat. It adds the lines client tooltip events add and
+ * hands each item to the class of its family (gear, crystals, cards, bottles, companions, the smaller items) for its own
+ * lines.
  */
 public class VaultItemsHandler
 {
@@ -443,6 +445,9 @@ public class VaultItemsHandler
     }
 
 
+    /**
+     * The logger the item family classes share, so their warnings keep this class's name.
+     */
     static final Logger LOGGER = LogUtils.getLogger();
 
     /**
