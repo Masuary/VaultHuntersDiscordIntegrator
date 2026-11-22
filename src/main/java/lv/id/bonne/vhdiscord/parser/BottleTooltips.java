@@ -78,14 +78,6 @@ final class BottleTooltips
 
 
     /**
-     * The bottle lines of Vault Hunters 7209 for one player: charges, drink mode, healing, the slotted and infused
-     * effects, how it fills and, in a vault, how far the next charge is.
-     *
-     * @param builder Embed Builder.
-     * @param itemStack the bottle.
-     * @param player the player the values are worked out for.
-     */
-    /**
      * A Vault Hunters 7209 potion's name as the game shows it to a player: the name of the player's potion tier, in its
      * colour.
      *
@@ -147,6 +139,14 @@ final class BottleTooltips
     }
 
 
+    /**
+     * The bottle lines of Vault Hunters 7209 for one player: charges, drink mode, healing, the slotted and infused
+     * effects, how it fills and, in a vault, how far the next charge is.
+     *
+     * @param builder Embed Builder.
+     * @param itemStack the bottle.
+     * @param player the player the values are worked out for.
+     */
     private static void appendPlayerBottleLines(StringBuilder builder, ItemStack itemStack, ServerPlayer player)
     {
         int charges = BottleItem.getCharges(player, itemStack);

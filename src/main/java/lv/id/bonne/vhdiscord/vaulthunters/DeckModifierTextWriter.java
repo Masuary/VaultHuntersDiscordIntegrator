@@ -17,11 +17,12 @@ import net.minecraft.world.item.TooltipFlag;
 
 /**
  * Writes a deck modifier's text for {@code MixinCardDeck}. The mod sets the parser's writer when it is constructed, which
- * falls back to a description when a modifier's own text needs the client; until then the modifier writes its own text.
+ * falls back to a description when a modifier's own text needs the client; until then the modifier writes its own text
+ * (looked up only when a deck's text is built, so a modifier method missing on a server cannot fail the mod's start).
  */
 public final class DeckModifierTextWriter
 {
-    private static volatile Writer writer = DeckModifier::addText;
+    private static volatile Writer writer;
 
 
     private DeckModifierTextWriter()
@@ -70,6 +71,15 @@ public final class DeckModifierTextWriter
      */
     public static void write(DeckModifier<?> modifier, List<Component> tooltip, int minIndex, TooltipFlag flag, float time)
     {
-        writer.write(modifier, tooltip, minIndex, flag, time);
+        Writer current = writer;
+
+        if (current == null)
+        {
+            modifier.addText(tooltip, minIndex, flag, time);
+        }
+        else
+        {
+            current.write(modifier, tooltip, minIndex, flag, time);
+        }
     }
 }

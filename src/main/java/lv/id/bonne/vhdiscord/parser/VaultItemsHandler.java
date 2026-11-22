@@ -375,7 +375,7 @@ public class VaultItemsHandler
             }
             else if (itemStack.getItem() instanceof CoinPouchItem)
             {
-                MiscItemTooltips.handleCoinPouchTooltip(builder, itemStack);
+                MiscItemTooltips.handleCoinPouchTooltip(builder, itemStack, linkingPlayer);
                 return builder.toString();
             }
             else if (itemStack.getItem() instanceof ItemShardPouch)

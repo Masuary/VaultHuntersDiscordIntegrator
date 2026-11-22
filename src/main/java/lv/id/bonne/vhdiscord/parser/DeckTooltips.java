@@ -64,6 +64,7 @@ public final class DeckTooltips
         {
             return lines;
         }
+
         int previousGreedTier = DeckTextGreedTier.get();
         DeckTextGreedTier.set(greedTier);
 

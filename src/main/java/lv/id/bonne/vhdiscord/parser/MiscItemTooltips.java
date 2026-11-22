@@ -66,6 +66,8 @@ final class MiscItemTooltips
 
     private static final String VAULT_CHARM_SLOT = "vault_charm";
 
+    private static final String POUCH_OWNER_KEY = "Owner";
+
     private static final int GREEDY_CHARM_VALUE_COLOUR = 0xFFC530;
 
 
@@ -472,13 +474,24 @@ final class MiscItemTooltips
 
 
     /**
-     * Writes a coin pouch's own tooltip line; the coins themselves are drawn as slots in the picture.
+     * Writes a coin pouch's own tooltip line; the coins themselves are drawn as slots in the picture. Since Vault Hunters
+     * 7209 the game reads that line from the owner's saved contents, so a pouch owned by someone else than the linking
+     * player is written as an empty one instead of reading another player's data.
      *
      * @param builder Embed Builder.
      * @param itemStack the coin pouch.
+     * @param linkingPlayer the player who linked it, or null when unknown.
      */
-    static void handleCoinPouchTooltip(StringBuilder builder, ItemStack itemStack)
+    static void handleCoinPouchTooltip(StringBuilder builder, ItemStack itemStack, ServerPlayer linkingPlayer)
     {
+        CompoundTag tag = itemStack.getTag();
+
+        if (tag != null && tag.hasUUID(POUCH_OWNER_KEY) && (linkingPlayer == null || !tag.getUUID(POUCH_OWNER_KEY).equals(linkingPlayer.getUUID())))
+        {
+            TooltipLines.appendTextLine(builder, new TextComponent("Empty").withStyle(ChatFormatting.GRAY));
+            return;
+        }
+
         TooltipLines.appendItemGameLines(builder, itemStack);
     }
 
