@@ -43,7 +43,7 @@ public class MixinForgeMessageUtils {
         CallbackInfoReturnable<MessageEmbed> cir,
         JsonObject json,
         JsonArray args,
-        Iterator var3,
+        Iterator<JsonElement> var3,
         JsonElement el,
         JsonObject arg1,
         JsonObject hoverEvent,
