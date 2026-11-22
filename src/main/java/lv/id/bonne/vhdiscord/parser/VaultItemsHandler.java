@@ -10,7 +10,15 @@ package lv.id.bonne.vhdiscord.parser;
 import com.google.gson.JsonObject;
 import java.awt.Color;
 import java.text.DecimalFormat;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Predicate;
 import java.util.regex.Matcher;
@@ -25,16 +33,29 @@ import iskallia.vault.config.TrinketConfig;
 import iskallia.vault.config.UniqueGearConfig;
 import iskallia.vault.config.VaultItemsConfig;
 import iskallia.vault.config.entry.DescriptionData;
+import iskallia.vault.config.gear.VaultEtchingConfig;
 import iskallia.vault.config.gear.VaultGearTagConfig;
 import iskallia.vault.config.gear.VaultGearTierConfig;
 import iskallia.vault.config.sigil.SigilConfig;
-import iskallia.vault.core.card.*;
+import iskallia.vault.core.card.Card;
+import iskallia.vault.core.card.CardCondition;
+import iskallia.vault.core.card.CardEntry;
+import iskallia.vault.core.card.CardPos;
+import iskallia.vault.core.card.CardProperty;
 import iskallia.vault.core.card.modifier.card.GearCardModifier;
-import iskallia.vault.core.card.modifier.deck.*;
+import iskallia.vault.core.card.modifier.deck.BountyDeckModifier;
+import iskallia.vault.core.card.modifier.deck.DeckModifier;
+import iskallia.vault.core.card.modifier.deck.GlobalDeckModifier;
+import iskallia.vault.core.card.modifier.deck.NonFoilEfficiencyDeckModifier;
+import iskallia.vault.core.card.modifier.deck.ResourceDoubleDeckModifier;
+import iskallia.vault.core.card.modifier.deck.ResourceRequirementDeckModifier;
+import iskallia.vault.core.card.modifier.deck.SlotDeckModifier;
+import iskallia.vault.core.card.modifier.deck.StatEfficiencyDeckModifier;
 import iskallia.vault.core.data.key.ThemeKey;
 import iskallia.vault.core.vault.VaultRegistry;
 import iskallia.vault.core.vault.influence.VaultGod;
 import iskallia.vault.core.vault.modifier.VaultModifierStack;
+import iskallia.vault.core.vault.modifier.registry.VaultModifierRegistry;
 import iskallia.vault.core.vault.modifier.spi.VaultModifier;
 import iskallia.vault.core.vault.objective.ParadoxObjective;
 import iskallia.vault.dynamodel.DynamicModel;
@@ -49,13 +70,35 @@ import iskallia.vault.gear.attribute.config.ConfigurableAttributeGenerator;
 import iskallia.vault.gear.charm.CharmEffect;
 import iskallia.vault.gear.data.AttributeGearData;
 import iskallia.vault.gear.data.VaultGearData;
+import iskallia.vault.gear.etching.EtchingHelper;
 import iskallia.vault.gear.item.VaultGearItem;
 import iskallia.vault.gear.reader.DecimalModifierReader;
 import iskallia.vault.gear.reader.VaultGearModifierReader;
 import iskallia.vault.gear.tooltip.VaultGearTooltipItem;
 import iskallia.vault.gear.trinket.TrinketEffect;
-import iskallia.vault.init.*;
-import iskallia.vault.item.*;
+import iskallia.vault.init.ModConfigs;
+import iskallia.vault.init.ModDynamicModels;
+import iskallia.vault.init.ModGearAttributes;
+import iskallia.vault.init.ModRelics;
+import iskallia.vault.item.AntiqueItem;
+import iskallia.vault.item.AugmentItem;
+import iskallia.vault.item.CardDeckItem;
+import iskallia.vault.item.CardItem;
+import iskallia.vault.item.CoinPouchItem;
+import iskallia.vault.item.CompanionRelicItem;
+import iskallia.vault.item.DeckSocketItem;
+import iskallia.vault.item.InfusedCatalystItem;
+import iskallia.vault.item.InscriptionItem;
+import iskallia.vault.item.ItemRespecFlask;
+import iskallia.vault.item.ItemShardPouch;
+import iskallia.vault.item.JewelPouchItem;
+import iskallia.vault.item.ModifierScrollItem;
+import iskallia.vault.item.RelicFragmentItem;
+import iskallia.vault.item.SigilItem;
+import iskallia.vault.item.SoulFlameItem;
+import iskallia.vault.item.TitleScrollItem;
+import iskallia.vault.item.VaultCatalystItem;
+import iskallia.vault.item.VaultDollItem;
 import iskallia.vault.item.bottle.BottleItem;
 import iskallia.vault.item.bottle.DrinkMode;
 import iskallia.vault.item.bottle.PotionEffect;
@@ -65,12 +108,16 @@ import iskallia.vault.item.bottle.PotionTiers;
 import iskallia.vault.item.crystal.CrystalData;
 import iskallia.vault.item.crystal.CrystalEntry;
 import iskallia.vault.item.crystal.VaultCrystalItem;
-import iskallia.vault.item.crystal.layout.*;
+import iskallia.vault.item.crystal.layout.ArchitectCrystalLayout;
+import iskallia.vault.item.crystal.layout.CrystalLayout;
+import iskallia.vault.item.crystal.layout.ParadoxCrystalLayout;
 import iskallia.vault.item.crystal.layout.preset.ParadoxTemplatePreset;
 import iskallia.vault.item.crystal.modifiers.CrystalModifiers;
 import iskallia.vault.item.crystal.modifiers.ParadoxCrystalModifiers;
 import iskallia.vault.item.crystal.modifiers.PersonalCrystalModifiers;
-import iskallia.vault.item.crystal.objective.*;
+import iskallia.vault.item.crystal.objective.AscensionCrystalObjective;
+import iskallia.vault.item.crystal.objective.CrystalObjective;
+import iskallia.vault.item.crystal.objective.ParadoxCrystalObjective;
 import iskallia.vault.item.crystal.properties.CapacityCrystalProperties;
 import iskallia.vault.item.crystal.properties.CrystalProperties;
 import iskallia.vault.item.crystal.properties.InstabilityCrystalProperties;
@@ -84,13 +131,6 @@ import iskallia.vault.item.crystal.time.PoolCrystalTime;
 import iskallia.vault.item.crystal.time.ValueCrystalTime;
 import iskallia.vault.item.data.InscriptionData;
 import iskallia.vault.item.gear.CharmItem;
-import iskallia.vault.config.gear.VaultEtchingConfig;
-import iskallia.vault.core.vault.modifier.registry.VaultModifierRegistry;
-import iskallia.vault.gear.etching.EtchingHelper;
-import iskallia.vault.item.CoinPouchItem;
-import iskallia.vault.item.InfusedCatalystItem;
-import iskallia.vault.item.ItemShardPouch;
-import iskallia.vault.item.VaultCatalystItem;
 import iskallia.vault.item.gear.EtchingItem;
 import iskallia.vault.item.gear.GreedTrinketItem;
 import iskallia.vault.item.gear.IVaultUsesItem;
@@ -101,9 +141,6 @@ import iskallia.vault.item.gear.VaultUsesHelper;
 import iskallia.vault.item.gear.VoidStoneItem;
 import iskallia.vault.item.modification.GearModificationItem;
 import iskallia.vault.item.modification.ReforgeTagModificationFocus;
-import iskallia.vault.item.CompanionRelicItem;
-import iskallia.vault.item.DeckSocketItem;
-import iskallia.vault.item.SigilItem;
 import iskallia.vault.item.tool.JewelItem;
 import iskallia.vault.util.MiscUtils;
 import iskallia.vault.util.PlayerRecoveryHelper;
@@ -116,7 +153,12 @@ import net.minecraft.ChatFormatting;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
-import net.minecraft.network.chat.*;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.MutableComponent;
+import net.minecraft.network.chat.Style;
+import net.minecraft.network.chat.TextColor;
+import net.minecraft.network.chat.TextComponent;
+import net.minecraft.network.chat.TranslatableComponent;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.effect.MobEffect;
@@ -1832,7 +1874,6 @@ public class VaultItemsHandler
     }
 
 
-
     /**
      * Writes a charm's tooltip as the game draws it. Wold's Vaults replaces Vault Hunters' charm tooltip with one that
      * leaves out the uses and the Curios slot.
@@ -2637,11 +2678,6 @@ public class VaultItemsHandler
     }
 
 
-// ---------------------------------------------------------------------
-// Section: Private processing methods
-// ---------------------------------------------------------------------
-
-
     @SuppressWarnings({"rawtypes", "unchecked"})
     private static void addCardProperty(StringBuilder builder, CardProperty<?> property, int tier)
     {
@@ -3287,9 +3323,16 @@ public class VaultItemsHandler
     }
 
 
-// ---------------------------------------------------------------------
-// Section: Variables
-// ---------------------------------------------------------------------
+    private static String formatTimeString(long ticks)
+    {
+        long seconds = ticks / 20L % 60L;
+        long minutes = ticks / 20L / 60L % 60L;
+        long hours = ticks / 20L / 60L / 60L;
+
+        return hours > 0L
+            ? String.format("%02d:%02d:%02d", hours, minutes, seconds)
+            : String.format("%02d:%02d", minutes, seconds);
+    }
 
 
     /**
@@ -3383,23 +3426,6 @@ public class VaultItemsHandler
      * How the game's deck tooltip starts its sockets line.
      */
     private static final String SOCKETS_PREFIX = "Sockets:";
-
-    /**
-     * Variable format for numbers.
-     */
-    private static final DecimalFormat FORMAT = new DecimalFormat("0.##");
-
-
-    private static String formatTimeString(long ticks)
-    {
-        long seconds = ticks / 20L % 60L;
-        long minutes = ticks / 20L / 60L % 60L;
-        long hours = ticks / 20L / 60L / 60L;
-
-        return hours > 0L
-            ? String.format("%02d:%02d:%02d", hours, minutes, seconds)
-            : String.format("%02d:%02d", minutes, seconds);
-    }
 
     private static final DecimalFormat PERCENT_FORMAT = new DecimalFormat("#.##%");
 }
