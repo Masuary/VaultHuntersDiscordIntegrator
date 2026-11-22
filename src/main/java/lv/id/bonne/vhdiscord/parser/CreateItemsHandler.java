@@ -1,5 +1,5 @@
 //
-// Created by BONNe
+// Created by Masuary
 // Copyright - 2026
 //
 
@@ -15,7 +15,11 @@ import com.simibubi.create.foundation.utility.Components;
 import com.simibubi.create.foundation.utility.Lang;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.Pattern;
+
+import com.mojang.logging.LogUtils;
+import org.slf4j.Logger;
 import net.minecraft.ChatFormatting;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.Tag;
@@ -30,6 +34,11 @@ import net.minecraftforge.items.ItemStackHandler;
  */
 public class CreateItemsHandler
 {
+    private static final Logger LOGGER = LogUtils.getLogger();
+
+    private static final AtomicBoolean FILTER_FAILURE_LOGGED = new AtomicBoolean();
+
+
     /**
      * This method generates string with tooltip of given Create filter item stack.
      * @param itemStack Item Stack object.
@@ -53,9 +62,12 @@ public class CreateItemsHandler
 
                 return sb.toString();
             }
-            catch (Throwable throwable)
+            catch (RuntimeException | LinkageError failure)
             {
-                System.out.println(throwable);
+                if (FILTER_FAILURE_LOGGED.compareAndSet(false, true))
+                {
+                    LOGGER.warn("Could not describe a Create filter; its link is posted with the plain tooltip", failure);
+                }
             }
         }
 

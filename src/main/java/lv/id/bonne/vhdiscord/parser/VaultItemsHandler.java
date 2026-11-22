@@ -37,8 +37,6 @@ import iskallia.vault.core.vault.influence.VaultGod;
 import iskallia.vault.core.vault.modifier.VaultModifierStack;
 import iskallia.vault.core.vault.modifier.spi.VaultModifier;
 import iskallia.vault.core.vault.objective.ParadoxObjective;
-import iskallia.vault.core.world.generator.layout.ArchitectRoomEntry;
-import iskallia.vault.core.world.generator.layout.DIYRoomEntry;
 import iskallia.vault.dynamodel.DynamicModel;
 import iskallia.vault.dynamodel.model.armor.ArmorPieceModel;
 import iskallia.vault.dynamodel.model.item.PlainItemModel;
@@ -107,7 +105,6 @@ import iskallia.vault.item.CompanionRelicItem;
 import iskallia.vault.item.DeckSocketItem;
 import iskallia.vault.item.SigilItem;
 import iskallia.vault.item.tool.JewelItem;
-import iskallia.vault.item.tool.PaxelItem;
 import iskallia.vault.util.MiscUtils;
 import iskallia.vault.util.PlayerRecoveryHelper;
 import iskallia.vault.util.TextUtil;
@@ -116,7 +113,6 @@ import iskallia.vault.world.VaultDifficulty;
 import lv.id.bonne.vhdiscord.vaulthunters.mixin.CardEntryAccessor;
 import lv.id.bonne.vhdiscord.vaulthunters.mixin.GearCardModifierAccessor;
 import net.minecraft.ChatFormatting;
-import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
@@ -507,11 +503,13 @@ public class VaultItemsHandler
                 return builder.toString();
             }
         }
-        catch (Exception e)
+        catch (Exception failure)
         {
-            e.printStackTrace();
+            if (GAME_TEXT_FAILURES.add(itemStack.getItem().getClass().getName()))
+            {
+                LOGGER.warn("Could not describe {}; its link is posted with the plain tooltip", itemStack.getItem().getClass().getName(), failure);
+            }
 
-            // If I fail, then return nothing.
             return null;
         }
     }
@@ -1016,92 +1014,6 @@ public class VaultItemsHandler
 
 
     /**
-     * This method parses paxel item tooltip into discord chat.
-     * @param builder Embed Builder.
-     * @param itemStack Vault Paxel Item Stack.
-     * @param paxelItem Vault Paxel Item.
-     */
-    public static void handlePaxelTooltip(StringBuilder builder, ItemStack itemStack, PaxelItem paxelItem)
-    {
-        int durability = paxelItem.getMaxDamage(itemStack);
-        float miningSpeed = PaxelItem.getUsableStat(itemStack, PaxelItem.Stat.MINING_SPEED);
-        float reach = PaxelItem.getUsableStat(itemStack, PaxelItem.Stat.REACH);
-        float copiously = PaxelItem.getUsableStat(itemStack, PaxelItem.Stat.COPIOUSLY);
-
-        // Generic information.
-
-        builder.append("**D:** ").append(FORMAT.format(durability));
-
-        if (reach > 0)
-        {
-            builder.append(" **R:** ").append(FORMAT.format(reach));
-        }
-
-        builder.append(" **S:** ").append(FORMAT.format(miningSpeed));
-
-        if (copiously > 0)
-        {
-            builder.append(" **C:** ").append(FORMAT.format(copiously)).append("%");
-        }
-
-        builder.append("\n");
-
-        // Perks
-
-        List<PaxelItem.Perk> perks = PaxelItem.getPerks(itemStack);
-
-        if (perks.size() > 0)
-        {
-            builder.append("**Perks:**");
-            perks.forEach(perk -> {
-                builder.append("\n");
-                builder.append("  ").append(perk.getSerializedName());
-            });
-
-            builder.append("\n");
-        }
-
-        // Main information
-
-        int level = PaxelItem.getPaxelLevel(itemStack);
-        builder.append("**Level:** ").append(level).append("\n");
-
-        builder.append(VaultItemsHandler.createRepairText(
-            PaxelItem.getUsedRepairSlots(itemStack),
-            PaxelItem.getMaxRepairSlots(itemStack))).
-            append("\n");
-
-        int sockets = PaxelItem.getSockets(itemStack);
-
-        if (sockets != 0)
-        {
-            builder.append("**Sockets:** ").
-                append(VaultItemsHandler.createDots(sockets, EMPTY_CIRCLE)).
-                append("\n");
-        }
-
-        builder.append("\n");
-
-        PaxelItem.Stat[] stats = PaxelItem.Stat.values();
-
-        for (int index = 0; index < stats.length; ++index)
-        {
-            PaxelItem.Stat stat = stats[index];
-
-            float value = PaxelItem.getStatUpgrade(itemStack, stat);
-
-            if (value != 0.0F)
-            {
-                builder.append("**").append(stat.getReadableName()).append("**");
-                builder.append(value > 0.0F ? " +" : " ");
-                builder.append(ModConfigs.PAXEL_CONFIGS.getUpgrade(stat).formatValue(value));
-                builder.append("\n");
-            }
-        }
-    }
-
-
-    /**
      * This method parses Etching item tooltip into discord chat.
      * @param builder Embed Builder.
      * @param itemStack Vault Etching Item Stack.
@@ -1200,8 +1112,7 @@ public class VaultItemsHandler
 
 
     /**
-     * The greed tier an etching needs, read by its registry name: the attribute is newer than the Vault Hunters
-     * version this mod compiles against.
+     * The greed tier an etching needs.
      *
      * @param data the etching's gear data.
      * @return the tier, or empty when the etching has none.
@@ -1209,7 +1120,7 @@ public class VaultItemsHandler
     private static Optional<Integer> greedTierOf(VaultGearData data)
     {
         return data.getAttributes().stream().
-            filter(instance -> GREED_TIER_ATTRIBUTE.equals(instance.getAttribute().getRegistryName())).
+            filter(instance -> instance.getAttribute() == ModGearAttributes.GREED_TIER).
             map(VaultGearAttributeInstance::getValue).
             filter(Integer.class::isInstance).
             map(Integer.class::cast).
@@ -1864,19 +1775,6 @@ public class VaultItemsHandler
         }
 
         return null;
-    }
-
-
-    /**
-     * This method adds Vault Artifact image to the discord chat.
-     * @param builder Embed Builder.
-     * @param itemTag Vault artifact tag.
-     */
-    public static void handleVaultArtifactTooltip(StringBuilder builder, CompoundTag itemTag)
-    {
-         int customModelData = Math.max(itemTag.getInt("CustomModelData"), 1);
-         String name = "vault_artifact_" + customModelData + ".png";
-         builder.append("https://bonne.id.lv/assets/img/").append(name);
     }
 
 
@@ -3450,8 +3348,6 @@ public class VaultItemsHandler
      * An etching description placeholder for an effect name, e.g. %svalue/effect.
      */
     private static final Pattern ETCHING_EFFECT_PLACEHOLDER = Pattern.compile("%s([\\w$]+)/effect(?![\\w$/])");
-
-    private static final ResourceLocation GREED_TIER_ATTRIBUTE = new ResourceLocation("the_vault", "greed_tier");
 
     private static final String WOLDS_VAULTS_MOD_ID = "woldsvaults";
 

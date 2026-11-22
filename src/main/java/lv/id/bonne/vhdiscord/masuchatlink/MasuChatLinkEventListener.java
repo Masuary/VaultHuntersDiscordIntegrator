@@ -1,5 +1,5 @@
 //
-// Created by BONNe
+// Created by Masuary
 // Copyright - 2026
 //
 
@@ -200,8 +200,9 @@ public class MasuChatLinkEventListener
                 slots,
                 deck.map(DeckPicture.Picture::deck).orElse(null)));
         }
-        catch (CommandSyntaxException ignored)
+        catch (CommandSyntaxException unparseable)
         {
+            LOGGER.debug("A linked item's tag does not parse: {}", unparseable.getMessage());
         }
         catch (RuntimeException | LinkageError failure)
         {

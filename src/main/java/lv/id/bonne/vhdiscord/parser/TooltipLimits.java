@@ -1,3 +1,9 @@
+//
+// Created by Masuary
+// Copyright - 2026
+//
+
+
 package lv.id.bonne.vhdiscord.parser;
 
 
