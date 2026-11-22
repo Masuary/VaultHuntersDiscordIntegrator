@@ -18,6 +18,7 @@ import org.slf4j.Logger;
 import iskallia.vault.core.card.CardDeck;
 import iskallia.vault.core.card.modifier.deck.DeckModifier;
 import iskallia.vault.world.data.PlayerGreedTreeData;
+import lv.id.bonne.vhdiscord.vaulthunters.DeckTextGreedTier;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.TextComponent;
 import net.minecraft.server.level.ServerPlayer;
@@ -42,12 +43,6 @@ public final class DeckTooltips
      */
     private static final Set<Class<?>> FAILED_MODIFIERS = ConcurrentHashMap.newKeySet();
 
-    /**
-     * The greed tier the deck text being built on this thread is worked out for; the game reads the client's own tier,
-     * which a server does not have.
-     */
-    private static final ThreadLocal<Integer> GREED_TIER_OF_DECK_TEXT = ThreadLocal.withInitial(() -> 0);
-
 
     private DeckTooltips()
     {
@@ -69,8 +64,8 @@ public final class DeckTooltips
         {
             return lines;
         }
-        Integer previousGreedTier = GREED_TIER_OF_DECK_TEXT.get();
-        GREED_TIER_OF_DECK_TEXT.set(greedTier);
+        int previousGreedTier = DeckTextGreedTier.get();
+        DeckTextGreedTier.set(greedTier);
 
         try
         {
@@ -78,7 +73,7 @@ public final class DeckTooltips
         }
         finally
         {
-            GREED_TIER_OF_DECK_TEXT.set(previousGreedTier);
+            DeckTextGreedTier.set(previousGreedTier);
         }
 
         return lines;
@@ -95,18 +90,6 @@ public final class DeckTooltips
     public static boolean isDescribable(CardDeck deck)
     {
         return TooltipLimits.isDescribableDeck(deck.getSocketCount(), deck.getSlots().size());
-    }
-
-
-    /**
-     * The greed tier the deck text being built on this thread is worked out for, read by
-     * {@link lv.id.bonne.vhdiscord.vaulthunters.mixin.MixinCardDeck} in place of the client's tier.
-     *
-     * @return the greed tier, 0 outside {@link #deckLines}.
-     */
-    public static int greedTierOfDeckText()
-    {
-        return GREED_TIER_OF_DECK_TEXT.get();
     }
 
 
