@@ -36,7 +36,7 @@ Four mixin JSON files in `src/main/resources/`:
 - `mixins.vhdiscord.dcintegration.json` - 7 mixins, conditional on dcintegration mod
 - `mixins.vhdiscord.mc2discord.json` - 1 mixin, conditional on mc2discord (excludes v3.x)
 - `mixins.vhdiscord.sdlink.json` - 7 mixins, conditional on sdlink mod
-- `mixins.vhdiscord.vaulthunters.json` - always loaded, server only: 2 accessor mixins, plus `MixinCardDeck`, `MixinDeckModifier` and `MixinDeckModifierShiftKey`, which let VH's client-side deck tooltip (and Wold's Vaults' deck modifiers, `@Pseudo`) run on a dedicated server for `parser/DeckTooltips`, and `MixinVaultGearModifierReader`, which answers `applyAccessibilityColour` as the default option does (since 7209 `ModOptions` cannot initialise on a dedicated server). A new deck modifier class that asks `Screen.hasShiftDown()` belongs in `MixinDeckModifierShiftKey`; until then it is written by name.
+- `mixins.vhdiscord.vaulthunters.json` - always loaded, server only: 2 accessor mixins, plus `MixinCardDeck`, `MixinDeckModifier` and `MixinDeckModifierShiftKey`, which let VH's client-side deck tooltip (and Wold's Vaults' deck modifiers, `@Pseudo`) run on a dedicated server for `parser/DeckTooltips`, and `MixinVaultGearModifierReader` and `MixinVaultCharmItem`, which answer `applyAccessibilityColour` and the god charm name as the default options do (since 7209 `ModOptions` cannot initialise on a dedicated server; without the charm one every server lookup of an identified god charm's name throws, Quark links included). A new deck modifier class that asks `Screen.hasShiftDown()` belongs in `MixinDeckModifierShiftKey`; until then it is written by name.
 
 ### Item text (`parser`)
 
