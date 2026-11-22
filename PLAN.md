@@ -2,7 +2,7 @@
 
 ## 1.14.0: Vault Hunters Remastered 7209 (Skyvault Update 4) - Done (code), in-game tests pending
 
-Started and code-complete 2026-11-20 (uncommitted). Source: `/mnt/data/Projects/skyvault-update4-2026-11-20/2-jar-diff/reports/our-mods-impact.md`, section `vhdiscord-1.13.2.jar`; network plan `/mnt/data/Projects/skyvault-update4-2026-11-20/PLAN.md` (Phase A step 4). Check outputs: `/mnt/data/AI/work/vhdiscord-7209-port-2026-11-20/`.
+Started and code-complete 2026-11-20 (commit 97f1a28). Source: `/mnt/data/Projects/skyvault-update4-2026-11-20/2-jar-diff/reports/our-mods-impact.md`, section `vhdiscord-1.13.2.jar`; network plan `/mnt/data/Projects/skyvault-update4-2026-11-20/PLAN.md` (Phase A step 4). Check outputs: `/mnt/data/AI/work/vhdiscord-7209-port-2026-11-20/`.
 
 - [x] Version 1.13.2 -> 1.14.0; compiles against `the_vault-1.18.2-22.0.0-remastered.7209.jar` (local jar in `libs/`, not committed). MasuChatLink default jar path is now 1.3.0.
 - [x] Potion handler on the 7209 bottle API (`BottleItem.getCharges/getMaxCharges/getDrinkMode/getSlotEffects/getInfused/getFill/getBoundVault`, `PotionTiers.tierOf` -> `PotionConfig.Tier`, `PotionRolls`, `PotionEffectDisplay`), read for the linking player (`ChatRelayEvent.getPlayer()`); the viewer's key bind line is left out.
@@ -19,6 +19,20 @@ Started and code-complete 2026-11-20 (uncommitted). Source: `/mnt/data/Projects/
 - [ ] Shard pouch: soul shard count and the vault pouch line.
 - [ ] Socketed deck: attributes match the linking player's in-game deck tooltip at their greed tier (test with a player above greed tier 0), sockets line and core modifier lines present, no `Screen`/client class errors in the server log.
 - [ ] Wold's Vaults: one linked potion, soul flame, shard pouch and deck on the Wolds HUB test copy (`/mnt/data/AI/work/masuchatlink-crystal-tooltip-2026-11-19/run-probe.sh`), to prove the reflection paths and that `VaultItemsHandler` links on VH 3.21.6.
+
+## Phase R review 12 (Skyvault Update 4): decided by sir 2026-11-22
+
+Findings and the full answers: `/mnt/data/Projects/skyvault-update4-2026-11-20/9-mod-review/findings/12-vhdiscord.md`. Version stays 1.14.0 (not shipped).
+
+- [x] S4 build: VH through `-PvaultJarPath` (default the shared 7209 artifacts jar), no `libs/` flatDir, MDK comments trimmed.
+- [x] S3 tests: JUnit 5 set up; B1 cap tests first, then `MarkdownTooltipLines`, `AffixCategoryStyle`, `TooltipColorHints`, time formatting.
+- [x] B1: capped repeats (companion hearts, repair dots, crystal curses), deck text skipped for absurd socket/card counts, oversized descriptions dropped.
+- [x] S1 tidy: imports, dead code (paxel/artifact handlers, unregistered mc2discord `MixinPlayerList`, MDK stub, unused gradle property, stale comment), docs (CLAUDE.md counts, README changelog to 1.14.0), author headers on our own files.
+- [x] S2 split of `VaultItemsHandler` into family classes with one line helper, public entry points kept, `parser <-> vaulthunters` cycle broken; descriptions identical before and after on 7209 and Wolds.
+- [x] B2 god charm 7209 layout for the linking player (Wolds keeps the old one); B3 Vault Pouch from `getContainedStacks` with all eight contents, owner must be the linker; B4 charm slot, etching, greedy meal, potion lines aligned with 7209; B5 warn-once logging.
+- [x] F2 handlers for the new 7209 items (stash, bounty crate, looks and unlock items); F3 sigil tiers for the linker's vault level; F4 potion title = tier name, slotted-bottle line, heals drawn as hearts.
+- [x] VHArmory: slot icons soul dust, soul shard, ember and the heart sprites (VHArmory master cf6c6c6; push + deploy only with sir's go, before this jar goes live).
+- [ ] Independent review; testnet + CMA link pass with the temporary Redis on TestA.
 
 ### Left open
 - dcintegration/sdlink only (not loaded on our servers): `MixinAchievementCompleteTask`'s `PlayerList.broadcastMessage` call is gone from `AchievementCompleteTask.onConsume` in 7209 and the skill altar share moved to `SkillAltarContainer.share`; those Discord announcements do not fire on 7209.
