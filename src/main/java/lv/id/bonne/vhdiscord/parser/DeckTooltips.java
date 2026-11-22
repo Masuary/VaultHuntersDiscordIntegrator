@@ -162,7 +162,7 @@ public final class DeckTooltips
                 LOGGER.warn("The tooltip of deck modifier {} cannot be built on the server; it is described by name", modifier.getClass().getName(), clientOnly);
             }
 
-            String description = VaultItemsHandler.describeDeckModifier(modifier);
+            String description = CardTooltips.describeDeckModifier(modifier);
             String fallback = description != null ? description : modifier.getName();
 
             if (fallback != null)
