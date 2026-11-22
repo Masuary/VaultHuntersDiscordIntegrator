@@ -18,6 +18,7 @@ import com.masuary.masuchatlink.api.TooltipSlot;
 import com.mojang.brigadier.StringReader;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import com.mojang.logging.LogUtils;
+import iskallia.vault.item.CoinPouchItem;
 import iskallia.vault.item.modification.ReforgeTagModificationFocus;
 import lv.id.bonne.vhdiscord.parser.TooltipColorHints;
 import lv.id.bonne.vhdiscord.parser.TooltipLimits;
@@ -29,6 +30,7 @@ import net.minecraft.network.chat.Style;
 import net.minecraft.network.chat.TextColor;
 import net.minecraft.network.chat.TranslatableComponent;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
@@ -38,6 +40,7 @@ import org.slf4j.Logger;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -77,6 +80,21 @@ public class MasuChatLinkEventListener
      * Item ids whose description was over the length limit, so each is logged once.
      */
     private static final Set<String> OVERSIZED_ITEMS = ConcurrentHashMap.newKeySet();
+
+    private static final String POUCH_OWNER_KEY = "Owner";
+
+    /**
+     * The Vault Pouch's contents to the site's slot icons.
+     */
+    private static final Map<String, String> POUCH_SLOT_ICONS = Map.of(
+        "the_vault:vault_bronze", "coin_bronze",
+        "the_vault:vault_silver", "coin_silver",
+        "the_vault:vault_gold", "coin_gold",
+        "the_vault:vault_platinum", "coin_platinum",
+        "the_vault:greed_coin", "coin_greed",
+        "the_vault:soul_dust", "soul_dust",
+        "the_vault:soul_shard", "soul_shard",
+        "the_vault:ember", "ember");
 
 
     @SubscribeEvent
@@ -148,7 +166,7 @@ public class MasuChatLinkEventListener
 
             CompoundTag itemTag = itemStack.getOrCreateTag();
             ChatRelayItem generic = event.getItem();
-            List<TooltipSlot> slots = this.coinSlotsOf(itemStack, itemTag);
+            List<TooltipSlot> slots = this.pouchSlotsOf(itemStack, itemTag, event.getPlayer());
 
             TooltipColorHints.start();
             String generated;
@@ -187,16 +205,18 @@ public class MasuChatLinkEventListener
 
             String itemName = itemStack.hasCustomHoverName() ? itemStack.getDisplayName().getContents() :
                 new TranslatableComponent(itemStack.getItem().getDescriptionId()).getContents();
-            String title = itemName.isBlank() ? itemStack.getHoverName().getString() : itemName;
+            Optional<Component> playerTitle = VaultItemsHandler.playerTitleOf(itemStack, event.getPlayer());
+            Component name = playerTitle.orElseGet(itemStack::getHoverName);
+            String title = playerTitle.map(Component::getString).orElse(itemName.isBlank() ? itemStack.getHoverName().getString() : itemName);
 
             List<List<TooltipSegment>> serverLines = generic == null || generic.lines() == null ? List.of() : generic.lines();
             List<TooltipSegment> modLine = serverLines.isEmpty() ? null : serverLines.get(serverLines.size() - 1);
             Optional<DeckPicture.Picture> deck = DeckPicture.of(itemStack, modLine, event.getPlayer());
 
             event.setItem(new ChatRelayItem(title,
-                this.colourOf(itemStack),
+                this.colourOf(name),
                 description,
-                deck.map(DeckPicture.Picture::lines).orElseGet(() -> this.linesOf(generic, title, itemStack, description)),
+                deck.map(DeckPicture.Picture::lines).orElseGet(() -> this.linesOf(generic, name, title, itemStack, description)),
                 slots,
                 deck.map(DeckPicture.Picture::deck).orElse(null)));
         }
@@ -246,12 +266,13 @@ public class MasuChatLinkEventListener
      * builds only those vanilla parts, its own gear tooltip is client-only).
      *
      * @param generic the item MasuChatLink attached, or null.
+     * @param name the item's name as the game shows it to the linking player.
      * @param title the item's name.
      * @param itemStack the item.
      * @param description the description VaultItemsHandler wrote.
      * @return the lines.
      */
-    private List<List<TooltipSegment>> linesOf(ChatRelayItem generic, String title, ItemStack itemStack, String description)
+    private List<List<TooltipSegment>> linesOf(ChatRelayItem generic, Component name, String title, ItemStack itemStack, String description)
     {
         List<List<TooltipSegment>> serverLines = generic == null || generic.lines() == null ? List.of() : generic.lines();
         List<TooltipSegment> modLine = serverLines.isEmpty() ? null : serverLines.get(serverLines.size() - 1);
@@ -262,7 +283,7 @@ public class MasuChatLinkEventListener
                 filter(line -> !MasuChatLinkEventListener.isDescribed(described, line)).
                 toList();
 
-        return MarkdownTooltipLines.convert(this.titleLineOf(itemStack, title), description, this.colourHints, missing, modLine);
+        return MarkdownTooltipLines.convert(this.titleLineOf(name, itemStack.hasCustomHoverName(), title), description, this.colourHints, missing, modLine);
     }
 
 
@@ -326,16 +347,15 @@ public class MasuChatLinkEventListener
 
 
     /**
-     * The name line as the game draws it: the hover name's runs in their colours, italic for a renamed item.
+     * The name line as the game draws it: the name's runs in their colours, italic for a renamed item.
      *
-     * @param itemStack the item.
-     * @param title the name text, used when the hover name has no text of its own.
+     * @param name the item's name as the game shows it.
+     * @param renamed whether the item carries a custom name.
+     * @param title the name text, used when the name has no text of its own.
      * @return the name's segments.
      */
-    private List<TooltipSegment> titleLineOf(ItemStack itemStack, String title)
+    private List<TooltipSegment> titleLineOf(Component name, boolean renamed, String title)
     {
-        Component name = itemStack.getHoverName();
-        boolean renamed = itemStack.hasCustomHoverName();
         List<TooltipSegment> segments = new ArrayList<>();
 
         name.visit((style, text) ->
@@ -361,14 +381,17 @@ public class MasuChatLinkEventListener
 
 
     /**
-     * The coins in a Vault Hunters Coin Pouch as slots for the picture; the game draws them on the client only, but the
-     * counts are on the item.
+     * The contents of a Vault Hunters Vault Pouch as slots for the picture, in the game's slot order; the game draws them
+     * on the client only. Since Vault Hunters 7209 the pouch holds only its owner and the contents are kept per player,
+     * so a pouch owned by someone else than the linking player shows none. Before 7209 (Wold's Vaults) the coins are on
+     * the item.
      *
      * @param itemStack the item.
      * @param itemTag the item's tag.
-     * @return the non-empty coin slots, or null when the item is not a coin pouch.
+     * @param linkingPlayer the player who linked the pouch, or null when unknown.
+     * @return the non-empty slots, or null when the item is not a Vault Pouch.
      */
-    private List<TooltipSlot> coinSlotsOf(ItemStack itemStack, CompoundTag itemTag)
+    private List<TooltipSlot> pouchSlotsOf(ItemStack itemStack, CompoundTag itemTag, ServerPlayer linkingPlayer)
     {
         ResourceLocation id = VH_DISCORD_ITEM_REGISTRY.getKey(itemStack.getItem());
 
@@ -377,22 +400,21 @@ public class MasuChatLinkEventListener
             return null;
         }
 
-        CompoundTag coins = itemTag.getCompound("Inventory");
-        List<TooltipSlot> slots = new ArrayList<>();
-        String[][] coinKeys = {
-            { "BronzeStackSize", "coin_bronze" },
-            { "SilverStackSize", "coin_silver" },
-            { "GoldStackSize", "coin_gold" },
-            { "PlatinumStackSize", "coin_platinum" },
-            { "GreedCoinStackSize", "coin_greed" } };
-
-        for (String[] coin : coinKeys)
+        if (itemTag.hasUUID(POUCH_OWNER_KEY) && (linkingPlayer == null || !itemTag.getUUID(POUCH_OWNER_KEY).equals(linkingPlayer.getUUID())))
         {
-            int count = coins.getInt(coin[0]);
+            return List.of();
+        }
 
-            if (count > 0)
+        List<TooltipSlot> slots = new ArrayList<>();
+
+        for (ItemStack contained : CoinPouchItem.getContainedStacks(itemStack))
+        {
+            ResourceLocation containedId = VH_DISCORD_ITEM_REGISTRY.getKey(contained.getItem());
+            String icon = containedId == null ? null : POUCH_SLOT_ICONS.get(containedId.toString());
+
+            if (icon != null && contained.getCount() > 0)
             {
-                slots.add(new TooltipSlot(coin[1], count));
+                slots.add(new TooltipSlot(icon, contained.getCount()));
             }
         }
 
@@ -401,16 +423,15 @@ public class MasuChatLinkEventListener
 
 
     /**
-     * Reads the hover name's own text colour (Vault Hunters applies the rarity/tier colour to the
-     * item's display name for every item type this handles), falling back to an empty string when the
-     * name carries no explicit colour.
+     * Reads the name's own text colour (Vault Hunters applies the rarity/tier colour to the item's display name for every
+     * item type this handles), falling back to an empty string when the name carries no explicit colour.
      *
-     * @param itemStack the item to read the colour from.
+     * @param name the item's name as the game shows it.
      * @return the serialised colour (a named colour or {@code #rrggbb}), or an empty string.
      */
-    private String colourOf(ItemStack itemStack)
+    private String colourOf(Component name)
     {
-        TextColor colour = itemStack.getHoverName().getStyle().getColor();
+        TextColor colour = name.getStyle().getColor();
         return colour == null ? "" : colour.serialize();
     }
 }

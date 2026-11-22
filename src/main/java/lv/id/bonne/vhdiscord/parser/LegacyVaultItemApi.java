@@ -20,6 +20,7 @@ import iskallia.vault.item.ItemShardPouch;
 import iskallia.vault.item.SoulFlameItem;
 import iskallia.vault.item.bottle.BottleItem;
 import iskallia.vault.item.crystal.modifiers.CrystalModifiers;
+import iskallia.vault.item.gear.VaultCharmItem;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.ItemStack;
 
@@ -47,6 +48,14 @@ final class LegacyVaultItemApi
         LegacyVaultItemApi.findMethod(ItemShardPouch.class, "getContainedStack", ItemStack.class);
 
     private static final Optional<Method> DECK_SNAPSHOT_ATTRIBUTES = LegacyVaultItemApi.findMethod(CardDeck.class, "getSnapshotAttributes");
+
+    private static final Optional<Method> CHARM_LIVE_SCALE = LegacyVaultItemApi.findMethod(VaultCharmItem.class, "getLiveScale", ItemStack.class, int.class);
+
+    private static final Optional<Method> BOUGHT_ETCHING =
+        LegacyVaultItemApi.findMethod("iskallia.vault.greed.house.HouseItems", "isBoughtEtching", ItemStack.class);
+
+    private static final Optional<Method> GREEDY_MEAL_XP_RANGE =
+        LegacyVaultItemApi.findMethod("iskallia.vault.config.greed.GreedBoxConfig", "getGreedyMealVaultXpRange");
 
 
     private LegacyVaultItemApi()
@@ -172,6 +181,40 @@ final class LegacyVaultItemApi
 
 
     /**
+     * Whether a god charm's values are the ones it rolled, with its stored reputation shown, as before 7209 (7209 scales
+     * them by the viewer's current reputation with the charm's god).
+     *
+     * @return true on Wold's Vaults and older Vault Hunters builds.
+     */
+    static boolean hasFixedCharmValues()
+    {
+        return CHARM_LIVE_SCALE.isEmpty();
+    }
+
+
+    /**
+     * Whether etchings show a plain greed tier and their gear type groups, without the Etching Table lines, as before 7209.
+     *
+     * @return true on Wold's Vaults and older Vault Hunters builds.
+     */
+    static boolean hasPlainEtchingLines()
+    {
+        return BOUGHT_ETCHING.isEmpty();
+    }
+
+
+    /**
+     * Whether Greedy Meals have no configured Vault XP range and no greed tier lock, as before 7209.
+     *
+     * @return true on Wold's Vaults and older Vault Hunters builds.
+     */
+    static boolean hasUnrangedGreedyMeal()
+    {
+        return GREEDY_MEAL_XP_RANGE.isEmpty();
+    }
+
+
+    /**
      * Whether a deck's stats do not depend on the greed tier, as before 7209.
      *
      * @return true on Wold's Vaults and older Vault Hunters builds.
@@ -186,6 +229,19 @@ final class LegacyVaultItemApi
     static List<VaultGearAttributeInstance<?>> deckSnapshotAttributes(CardDeck deck)
     {
         return (List<VaultGearAttributeInstance<?>>) LegacyVaultItemApi.invoke(LegacyVaultItemApi.required(DECK_SNAPSHOT_ATTRIBUTES), deck);
+    }
+
+
+    private static Optional<Method> findMethod(String ownerName, String name, Class<?>... parameterTypes)
+    {
+        try
+        {
+            return LegacyVaultItemApi.findMethod(Class.forName(ownerName, false, LegacyVaultItemApi.class.getClassLoader()), name, parameterTypes);
+        }
+        catch (ClassNotFoundException absent)
+        {
+            return Optional.empty();
+        }
     }
 
 

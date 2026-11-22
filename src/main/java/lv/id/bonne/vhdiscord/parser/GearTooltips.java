@@ -15,23 +15,28 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import com.mojang.datafixers.util.Pair;
 
 import iskallia.vault.config.UniqueGearConfig;
 import iskallia.vault.config.gear.VaultEtchingConfig;
 import iskallia.vault.config.gear.VaultGearTierConfig;
+import iskallia.vault.core.vault.influence.VaultGod;
 import iskallia.vault.core.vault.modifier.registry.VaultModifierRegistry;
 import iskallia.vault.dynamodel.model.armor.ArmorPieceModel;
 import iskallia.vault.gear.VaultGearState;
+import iskallia.vault.gear.VaultGearType;
 import iskallia.vault.gear.attribute.VaultGearAttribute;
 import iskallia.vault.gear.attribute.VaultGearAttributeInstance;
 import iskallia.vault.gear.attribute.VaultGearModifier;
 import iskallia.vault.gear.data.VaultGearData;
 import iskallia.vault.gear.etching.EtchingHelper;
+import iskallia.vault.gear.etching.EtchingTooltipLines;
 import iskallia.vault.gear.item.VaultGearItem;
 import iskallia.vault.init.ModConfigs;
 import iskallia.vault.init.ModDynamicModels;
+import iskallia.vault.greed.house.HouseItems;
 import iskallia.vault.init.ModGearAttributes;
 import iskallia.vault.item.data.InscriptionData;
 import iskallia.vault.item.gear.IVaultUsesItem;
@@ -40,6 +45,8 @@ import iskallia.vault.item.gear.VaultNecklaceItem;
 import iskallia.vault.item.gear.VaultUsesHelper;
 import iskallia.vault.item.gear.VoidStoneItem;
 import iskallia.vault.item.tool.JewelItem;
+import iskallia.vault.skill.prestige.helper.PrestigeHelper;
+import iskallia.vault.util.SidedHelper;
 import iskallia.vault.util.TextUtil;
 import iskallia.vault.util.Throuple;
 import net.minecraft.ChatFormatting;
@@ -51,6 +58,7 @@ import net.minecraft.network.chat.TextColor;
 import net.minecraft.network.chat.TextComponent;
 import net.minecraft.network.chat.TranslatableComponent;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.effect.MobEffect;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.item.Item;
@@ -110,7 +118,7 @@ final class GearTooltips
      * @param builder Embed Builder.
      * @param itemStack Vault Gear ItemStack.
      */
-    static void handleGearTooltip(StringBuilder builder, ItemStack itemStack)
+    static void handleGearTooltip(StringBuilder builder, ItemStack itemStack, ServerPlayer linkingPlayer)
     {
         VaultGearData data = VaultGearData.read(itemStack);
         VaultGearState state = data.getState();
@@ -118,7 +126,15 @@ final class GearTooltips
 
         if (itemStack.getItem() instanceof VaultCharmItem)
         {
-            GearTooltips.handleGodCharmTooltip(builder, itemStack, data, state);
+            if (LegacyVaultItemApi.hasFixedCharmValues())
+            {
+                GearTooltips.handleFixedGodCharmTooltip(builder, itemStack, data, state);
+            }
+            else
+            {
+                GearTooltips.handleGodCharmTooltip(builder, itemStack, data, state, linkingPlayer);
+            }
+
             return;
         }
 
@@ -295,39 +311,111 @@ final class GearTooltips
 
 
     /**
-     * Writes a god charm's tooltip as the game draws it without Shift: the uses left, its reputation and god, then the
-     * roll of an unidentified charm or the modifiers of an identified one (on Wold's Vaults the implicits first, without
-     * a header). The game hides the uses from players with the matching prestige power, which is not known here.
+     * Writes a god charm's tooltip as Vault Hunters 7209 draws it without Shift, for the linking player: the uses left
+     * (hidden for a player with the immortal charms prestige power), the god, then the roll of an unidentified charm, or
+     * the modifiers of an identified one scaled by the player's reputation with that god and a closing reputation line.
+     *
+     * @param builder Embed Builder.
+     * @param itemStack the god charm.
+     * @param data the charm's gear data.
+     * @param state the charm's identification state.
+     * @param linkingPlayer the player who linked the charm, or null when unknown (values as rolled, reputation 0).
+     */
+    private static void handleGodCharmTooltip(StringBuilder builder,
+        ItemStack itemStack,
+        VaultGearData data,
+        VaultGearState state,
+        ServerPlayer linkingPlayer)
+    {
+        boolean immortalCharms = linkingPlayer != null && VaultCharmItem.hasImmortalCharms(PrestigeHelper.getPrestige(linkingPlayer));
+
+        if (state == VaultGearState.IDENTIFIED && !immortalCharms)
+        {
+            GearTooltips.appendCharmUsesLine(builder, itemStack);
+        }
+
+        Optional<VaultGod> god = VaultCharmItem.getGod(itemStack);
+        god.ifPresent(vaultGod -> GearTooltips.appendCharmGodLine(builder, vaultGod));
+
+        if (state == VaultGearState.UNIDENTIFIED)
+        {
+            GearTooltips.appendCharmRollLine(builder, data);
+            return;
+        }
+
+        if (state != VaultGearState.IDENTIFIED || god.isEmpty())
+        {
+            return;
+        }
+
+        int reputation = linkingPlayer == null ? 0 : SidedHelper.getGodReputation(linkingPlayer, god.get()).orElse(0);
+        float liveScale = linkingPlayer == null ? 1.0F : VaultCharmItem.getLiveScale(itemStack, reputation);
+
+        data.getModifiers(VaultGearModifier.AffixType.PREFIX).forEach(modifier ->
+            GearTooltips.addAffix(builder,
+                VaultCharmItem.scaleModifier(modifier, liveScale),
+                data,
+                VaultGearModifier.AffixType.PREFIX,
+                itemStack));
+
+        TooltipLines.appendGameLine(builder, new TextComponent(god.get().getName() + " reputation: ").withStyle(ChatFormatting.GRAY).
+            append(new TextComponent(String.valueOf(reputation)).withStyle(ChatFormatting.WHITE)).
+            append(new TextComponent(" / 50").withStyle(ChatFormatting.GRAY)));
+    }
+
+
+    private static void appendCharmUsesLine(StringBuilder builder, ItemStack itemStack)
+    {
+        int remaining = Math.max(VaultUsesHelper.getUses(itemStack) - VaultUsesHelper.getUsedVaults(itemStack).size(), 0);
+        TooltipLines.appendGameLine(builder, new TextComponent("Uses: ").withStyle(ChatFormatting.GRAY).
+            append(new TextComponent(String.valueOf(remaining)).withStyle(ChatFormatting.WHITE)));
+    }
+
+
+    private static void appendCharmGodLine(StringBuilder builder, VaultGod god)
+    {
+        TooltipLines.appendGameLine(builder, new TextComponent("Vault God: ").
+            append(new TextComponent(god.getName()).withStyle(god.getChatColor())));
+    }
+
+
+    private static void appendCharmRollLine(StringBuilder builder, VaultGearData data)
+    {
+        data.getFirstValue(ModGearAttributes.GEAR_ROLL_TYPE).
+            flatMap(ModConfigs.VAULT_GEAR_TYPE_CONFIG::getRollPool).
+            ifPresent(pool ->
+            {
+                builder.append("**Roll:** ").append(pool.getName()).append("\n");
+                TooltipColorHints.recordValue("Roll", pool.getColor());
+            });
+    }
+
+
+    /**
+     * Writes a god charm's tooltip as Vault Hunters before 7209 (Wold's Vaults) draws it without Shift: the uses left, its
+     * reputation and god, then the roll of an unidentified charm or the modifiers of an identified one (on Wold's Vaults
+     * the implicits first, without a header). The game hides the uses from players with the matching prestige power,
+     * which is not known here.
      *
      * @param builder Embed Builder.
      * @param itemStack the god charm.
      * @param data the charm's gear data.
      * @param state the charm's identification state.
      */
-    private static void handleGodCharmTooltip(StringBuilder builder, ItemStack itemStack, VaultGearData data, VaultGearState state)
+    private static void handleFixedGodCharmTooltip(StringBuilder builder, ItemStack itemStack, VaultGearData data, VaultGearState state)
     {
         if (state == VaultGearState.IDENTIFIED)
         {
-            int remaining = Math.max(VaultUsesHelper.getUses(itemStack) - VaultUsesHelper.getUsedVaults(itemStack).size(), 0);
-            TooltipLines.appendGameLine(builder, new TextComponent("Uses: ").withStyle(ChatFormatting.GRAY).
-                append(new TextComponent(String.valueOf(remaining)).withStyle(ChatFormatting.WHITE)));
+            GearTooltips.appendCharmUsesLine(builder, itemStack);
         }
 
         TooltipLines.appendGameLine(builder, new TextComponent("Reputation: ").withStyle(ChatFormatting.GRAY).
             append(new TextComponent(String.valueOf(VaultCharmItem.getGodReputation(itemStack))).withStyle(ChatFormatting.WHITE)));
-        VaultCharmItem.getGod(itemStack).ifPresent(god ->
-            TooltipLines.appendGameLine(builder, new TextComponent("Vault God: ").
-                append(new TextComponent(god.getName()).withStyle(god.getChatColor()))));
+        VaultCharmItem.getGod(itemStack).ifPresent(god -> GearTooltips.appendCharmGodLine(builder, god));
 
         if (state == VaultGearState.UNIDENTIFIED)
         {
-            data.getFirstValue(ModGearAttributes.GEAR_ROLL_TYPE).
-                flatMap(ModConfigs.VAULT_GEAR_TYPE_CONFIG::getRollPool).
-                ifPresent(pool ->
-                {
-                    builder.append("**Roll:** ").append(pool.getName()).append("\n");
-                    TooltipColorHints.recordValue("Roll", pool.getColor());
-                });
+            GearTooltips.appendCharmRollLine(builder, data);
             return;
         }
 
@@ -425,6 +513,81 @@ final class GearTooltips
             return;
         }
 
+        if (LegacyVaultItemApi.hasPlainEtchingLines())
+        {
+            GearTooltips.appendPlainEtchingLines(builder, itemStack, data, entry);
+        }
+        else
+        {
+            GearTooltips.appendEtchingLines(builder, itemStack, data, entry);
+        }
+    }
+
+
+    /**
+     * An identified etching's lines as Vault Hunters 7209 draws them without Shift: its greed tier, the description, the
+     * gear it goes on and the Etching Table lines.
+     *
+     * @param builder Embed Builder.
+     * @param itemStack the etching.
+     * @param data the etching's gear data.
+     * @param entry the etching's config entry.
+     */
+    private static void appendEtchingLines(StringBuilder builder, ItemStack itemStack, VaultGearData data, VaultEtchingConfig.EtchingEntry entry)
+    {
+        TooltipLines.appendTextLine(builder, EtchingTooltipLines.tier(data.getFirstValue(ModGearAttributes.GREED_TIER).orElse(0)));
+        builder.append("\n");
+
+        Component description = TextUtil.applyColorTags(GearTooltips.etchingDescription(entry.getDescription(), itemStack));
+        TooltipLines.appendStyledLine(builder, description.getString(), description);
+        builder.append("\n");
+
+        TooltipLines.appendGameLine(builder, new TextComponent("Goes on: ").withStyle(ChatFormatting.GRAY).
+            append(new TextComponent(GearTooltips.etchingGearTypes(entry)).withStyle(ChatFormatting.WHITE)));
+        TooltipLines.appendTextLine(builder, new TextComponent("Apply at the Etching Table").withStyle(ChatFormatting.DARK_GRAY));
+
+        if (HouseItems.isBoughtEtching(itemStack))
+        {
+            TooltipLines.appendTextLine(builder, new TextComponent("Bought at the Etching Table").withStyle(ChatFormatting.DARK_GRAY));
+        }
+
+        int rerolls = HouseItems.rerollsOf(itemStack);
+
+        if (rerolls > 0)
+        {
+            TooltipLines.appendTextLine(builder,
+                new TextComponent("Rerolled " + rerolls + (rerolls == 1 ? " time" : " times") + " at Mr Greedy").withStyle(ChatFormatting.DARK_GRAY));
+        }
+    }
+
+
+    /**
+     * The gear an etching goes on, as the game names it: the display names of every gear type in its groups.
+     *
+     * @param entry the etching's config entry.
+     * @return the names, or "Any gear" for an etching without groups.
+     */
+    private static String etchingGearTypes(VaultEtchingConfig.EtchingEntry entry)
+    {
+        return entry.getTypeGroups().isEmpty() ? "Any gear" : entry.getTypeGroups().stream().
+            flatMap(group -> ModConfigs.ETCHINGS.getGroup(group).stream()).
+            map(VaultGearType::getDisplayName).
+            distinct().
+            collect(Collectors.joining(", "));
+    }
+
+
+    /**
+     * An identified etching's lines as Vault Hunters before 7209 (Wold's Vaults) draws them: its greed tier, the
+     * description and its gear type groups.
+     *
+     * @param builder Embed Builder.
+     * @param itemStack the etching.
+     * @param data the etching's gear data.
+     * @param entry the etching's config entry.
+     */
+    private static void appendPlainEtchingLines(StringBuilder builder, ItemStack itemStack, VaultGearData data, VaultEtchingConfig.EtchingEntry entry)
+    {
         GearTooltips.greedTierOf(data).ifPresent(greedTier ->
             TooltipLines.appendGameLine(builder, new TextComponent("Greed Tier: ").
                 append(new TextComponent(String.valueOf(greedTier)).withStyle(Style.EMPTY.withColor(TooltipLines.LEVEL_COLOUR)))));

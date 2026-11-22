@@ -10,6 +10,7 @@ package lv.id.bonne.vhdiscord.parser;
 import com.google.gson.JsonObject;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -95,6 +96,20 @@ public class VaultItemsHandler
     {
         String description = VaultItemsHandler.describeItem(itemJson, itemStack, itemTag, linkingPlayer);
         return description == null ? null : VaultItemsHandler.withClientEventLinesOrOwn(description, itemStack);
+    }
+
+
+    /**
+     * The name the game shows the linking player where it differs from the item's server name (a Vault Hunters 7209
+     * potion is named after the player's potion tier).
+     *
+     * @param itemStack the item.
+     * @param linkingPlayer the player who linked it, or null when unknown.
+     * @return the name, or empty when the server name is the one the game shows.
+     */
+    public static Optional<Component> playerTitleOf(ItemStack itemStack, ServerPlayer linkingPlayer)
+    {
+        return BottleTooltips.potionTitle(itemStack, linkingPlayer);
     }
 
 
@@ -290,7 +305,7 @@ public class VaultItemsHandler
             }
             else if (itemStack.getItem() instanceof VaultGearTooltipItem)
             {
-                GearTooltips.handleGearTooltip(builder, itemStack);
+                GearTooltips.handleGearTooltip(builder, itemStack, linkingPlayer);
                 return builder.toString();
             }
             else if (itemStack.getItem() instanceof VaultDollItem)
@@ -415,7 +430,7 @@ public class VaultItemsHandler
                 switch (itemId)
                 {
                     case "the_vault:greedy_meal" ->
-                        MiscItemTooltips.handleGreedyMealTooltip(builder, itemStack);
+                        MiscItemTooltips.handleGreedyMealTooltip(builder, itemStack, linkingPlayer);
                     case "the_vault:herald_trophy" ->
                         CompanionTooltips.handleHeraldTrophyTooltip(builder, itemStack);
                     case "the_vault:companion" ->

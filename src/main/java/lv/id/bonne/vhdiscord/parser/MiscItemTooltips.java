@@ -14,6 +14,7 @@ import iskallia.vault.config.PlayerTitlesConfig;
 import iskallia.vault.config.TrinketConfig;
 import iskallia.vault.config.VaultItemsConfig;
 import iskallia.vault.config.gear.VaultGearTagConfig;
+import iskallia.vault.config.greed.GreedBoxConfig;
 import iskallia.vault.gear.charm.CharmEffect;
 import iskallia.vault.gear.data.AttributeGearData;
 import iskallia.vault.gear.reader.DecimalModifierReader;
@@ -30,6 +31,7 @@ import iskallia.vault.item.gear.GreedTrinketItem;
 import iskallia.vault.item.gear.TrinketItem;
 import iskallia.vault.item.modification.ReforgeTagModificationFocus;
 import iskallia.vault.util.MiscUtils;
+import iskallia.vault.util.TextUtil;
 import net.minecraft.ChatFormatting;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
@@ -39,8 +41,10 @@ import net.minecraft.network.chat.Style;
 import net.minecraft.network.chat.TextColor;
 import net.minecraft.network.chat.TextComponent;
 import net.minecraft.network.chat.TranslatableComponent;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.ItemStack;
 import net.minecraftforge.fml.ModList;
+import top.theillusivec4.curios.api.CuriosApi;
 
 
 /**
@@ -50,6 +54,8 @@ import net.minecraftforge.fml.ModList;
 final class MiscItemTooltips
 {
     private static final String COMBINED_TRINKET_CLASS = "xyz.iwolfking.woldsvaults.items.CombinedTrinketItem";
+
+    private static final String VAULT_CHARM_SLOT = "vault_charm";
 
 
     private MiscItemTooltips()
@@ -261,8 +267,19 @@ final class MiscItemTooltips
 
         if (!woldsLayout)
         {
-            TooltipLines.appendGameLine(builder, MiscItemTooltips.curiosSlotLine("charm"));
+            TooltipLines.appendGameLine(builder, MiscItemTooltips.curiosSlotLine(MiscItemTooltips.charmSlotIdentifier()));
         }
+    }
+
+
+    /**
+     * The Curios slot a charm's tooltip names: Vault Hunters 7209 moved charms to its own {@code vault_charm} slot.
+     *
+     * @return the slot identifier.
+     */
+    private static String charmSlotIdentifier()
+    {
+        return CuriosApi.getSlotHelper().getSlotType(VAULT_CHARM_SLOT).isPresent() ? VAULT_CHARM_SLOT : "charm";
     }
 
 
@@ -483,14 +500,29 @@ final class MiscItemTooltips
     }
 
 
-    static void handleGreedyMealTooltip(StringBuilder builder, ItemStack itemStack)
+    static void handleGreedyMealTooltip(StringBuilder builder, ItemStack itemStack, ServerPlayer linkingPlayer)
     {
         int xpAmount = itemStack.getOrCreateTag().getInt("GreedXpBurger");
 
-        if (xpAmount > 0)
+        if (LegacyVaultItemApi.hasUnrangedGreedyMeal())
         {
-            TooltipLines.appendGameLine(builder,
-                new TextComponent("Grants " + String.format("%,d", xpAmount) + " Vault XP").withStyle(ChatFormatting.GREEN));
+            if (xpAmount > 0)
+            {
+                TooltipLines.appendGameLine(builder,
+                    new TextComponent("Grants " + String.format("%,d", xpAmount) + " Vault XP").withStyle(ChatFormatting.GREEN));
+            }
+
+            return;
+        }
+
+        GreedBoxConfig.Range range = ModConfigs.GREED_BOX.getGreedyMealVaultXpRange();
+        String amountText = xpAmount > 0 ? TextUtil.fullNumber(xpAmount) :
+            TextUtil.fullNumber(range.min()) + " - " + TextUtil.fullNumber(range.max());
+        TooltipLines.appendGameLine(builder, new TextComponent("Grants " + amountText + " Vault XP").withStyle(ChatFormatting.GREEN));
+
+        if (linkingPlayer != null && DeckTooltips.greedTierOf(linkingPlayer) < 1)
+        {
+            TooltipLines.appendGameLine(builder, new TextComponent("Unlocks at Greed Tier 1").withStyle(ChatFormatting.RED));
         }
     }
 

@@ -11,6 +11,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
+import iskallia.vault.config.PotionConfig;
 import iskallia.vault.init.ModConfigs;
 import iskallia.vault.item.bottle.BottleItem;
 import iskallia.vault.item.bottle.DrinkMode;
@@ -84,6 +85,68 @@ final class BottleTooltips
      * @param itemStack the bottle.
      * @param player the player the values are worked out for.
      */
+    /**
+     * A Vault Hunters 7209 potion's name as the game shows it to a player: the name of the player's potion tier, in its
+     * colour.
+     *
+     * @param itemStack the item.
+     * @param linkingPlayer the player who linked it, or null when unknown.
+     * @return the name, or empty for any other item, an older Vault Hunters or an unknown player.
+     */
+    static Optional<Component> potionTitle(ItemStack itemStack, ServerPlayer linkingPlayer)
+    {
+        if (!(itemStack.getItem() instanceof BottleItem) || itemStack.hasCustomHoverName() || linkingPlayer == null ||
+            ModConfigs.POTION == null || LegacyVaultItemApi.hasBottleTypes())
+        {
+            return Optional.empty();
+        }
+
+        PotionConfig.Tier tier = PotionTiers.tierOf(linkingPlayer);
+        return Optional.of(new TextComponent(tier.getName()).withStyle(Style.EMPTY.withColor(tier.getNameColor())));
+    }
+
+
+    /**
+     * The Heals line for the picture: the label and the hearts the game draws for the healing, with a "+" for more than
+     * it shows.
+     *
+     * @param healing the hit points the potion heals.
+     * @return the line.
+     */
+    private static Component healsLine(float healing)
+    {
+        MutableComponent line = new TextComponent("Heals").withStyle(Style.EMPTY.withColor(POTION_VALUE_COLOUR));
+        String hearts = HeartRow.hearts(healing);
+
+        if (!hearts.isEmpty())
+        {
+            line.append(new TextComponent(hearts).withStyle(ChatFormatting.RED));
+        }
+
+        if (HeartRow.hasMoreThanShown(healing))
+        {
+            line.append(new TextComponent("+").withStyle(Style.EMPTY.withColor(POTION_VALUE_COLOUR)));
+        }
+
+        return line;
+    }
+
+
+    /**
+     * Whether the linked potion is the one in the player's potion slot; the game compares the very stack, a link carries
+     * a copy, so the item and its tag are compared.
+     *
+     * @param itemStack the linked potion.
+     * @param player the player who linked it.
+     * @return true for the slotted potion.
+     */
+    private static boolean isSlotted(ItemStack itemStack, ServerPlayer player)
+    {
+        ItemStack slotted = BottleItem.getSlotted(player);
+        return !slotted.isEmpty() && ItemStack.isSameItemSameTags(slotted, itemStack);
+    }
+
+
     private static void appendPlayerBottleLines(StringBuilder builder, ItemStack itemStack, ServerPlayer player)
     {
         int charges = BottleItem.getCharges(player, itemStack);
@@ -96,13 +159,14 @@ final class BottleTooltips
         TooltipLines.appendTextLine(builder, BottleTooltips.bottleLabelled("Drink Mode",
             new TextComponent(drinkMode.getDisplayName()).withStyle(Style.EMPTY.withColor(drinkMode.getColor()))));
         builder.append("\n");
-        TooltipLines.appendTextLine(builder, new TextComponent("Heals  ").withStyle(Style.EMPTY.withColor(POTION_VALUE_COLOUR)).
-            append(new TextComponent(Math.round(healing) + " Hit Points").withStyle(ChatFormatting.RED)));
+        TooltipLines.appendStyledLine(builder, "Heals  " + Math.round(healing) + " Hit Points", BottleTooltips.healsLine(healing));
         BottleTooltips.appendBottleEffectLines(builder, itemStack, player);
         builder.append("\n");
         TooltipLines.appendTextLine(builder,
             new TextComponent("Fills from kills and chests in a vault").withStyle(ChatFormatting.GRAY));
-        TooltipLines.appendTextLine(builder, new TextComponent("Right-click to equip it").withStyle(ChatFormatting.DARK_GRAY));
+        TooltipLines.appendTextLine(builder,
+            new TextComponent(BottleTooltips.isSlotted(itemStack, player) ? "Right-click to change the Drink Mode" : "Right-click to equip it").
+                withStyle(ChatFormatting.DARK_GRAY));
 
         if (BottleItem.getBoundVault(itemStack).isPresent())
         {
