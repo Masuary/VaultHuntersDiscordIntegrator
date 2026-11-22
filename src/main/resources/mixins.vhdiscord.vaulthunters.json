@@ -9,6 +9,7 @@
     "CardEntryAccessor",
     "MixinCardDeck",
     "MixinDeckModifier",
-    "MixinDeckModifierShiftKey"
+    "MixinDeckModifierShiftKey",
+    "MixinVaultGearModifierReader"
   ]
 }

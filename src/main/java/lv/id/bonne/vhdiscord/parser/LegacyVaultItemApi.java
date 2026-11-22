@@ -14,8 +14,11 @@ import java.util.Optional;
 import java.util.UUID;
 
 import iskallia.vault.core.card.CardDeck;
+import iskallia.vault.core.vault.Vault;
+import iskallia.vault.core.vault.VaultUtils;
 import iskallia.vault.gear.attribute.VaultGearAttributeInstance;
 import iskallia.vault.init.ModConfigs;
+import iskallia.vault.item.AugmentItem;
 import iskallia.vault.item.ItemShardPouch;
 import iskallia.vault.item.SoulFlameItem;
 import iskallia.vault.item.bottle.BottleItem;
@@ -50,6 +53,11 @@ final class LegacyVaultItemApi
     private static final Optional<Method> DECK_SNAPSHOT_ATTRIBUTES = LegacyVaultItemApi.findMethod(CardDeck.class, "getSnapshotAttributes");
 
     private static final Optional<Method> CHARM_LIVE_SCALE = LegacyVaultItemApi.findMethod(VaultCharmItem.class, "getLiveScale", ItemStack.class, int.class);
+
+    private static final Optional<Method> AUGMENT_SERIES = LegacyVaultItemApi.findMethod(AugmentItem.class, "getSeries", ItemStack.class);
+
+    private static final Optional<Method> TEMPORAL_MODIFIER_LOCK =
+        LegacyVaultItemApi.findMethod(VaultUtils.class, "hasNoTemporalModifier", Vault.class);
 
     private static final Optional<Method> BOUGHT_ETCHING =
         LegacyVaultItemApi.findMethod("iskallia.vault.greed.house.HouseItems", "isBoughtEtching", ItemStack.class);
@@ -189,6 +197,28 @@ final class LegacyVaultItemApi
     static boolean hasFixedCharmValues()
     {
         return CHARM_LIVE_SCALE.isEmpty();
+    }
+
+
+    /**
+     * Whether augments can belong to a theme series, as since 7209.
+     *
+     * @return true on Vault Hunters 7209 and later, false on Wold's Vaults.
+     */
+    static boolean hasThemeSeries()
+    {
+        return AUGMENT_SERIES.isPresent();
+    }
+
+
+    /**
+     * Whether a vault's objective can lock Temporal Shards, as since 7209.
+     *
+     * @return true on Vault Hunters 7209 and later, false on Wold's Vaults.
+     */
+    static boolean hasTemporalModifierLock()
+    {
+        return TEMPORAL_MODIFIER_LOCK.isPresent();
     }
 
 

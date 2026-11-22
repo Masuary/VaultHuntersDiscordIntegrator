@@ -15,6 +15,10 @@ import iskallia.vault.config.TrinketConfig;
 import iskallia.vault.config.VaultItemsConfig;
 import iskallia.vault.config.gear.VaultGearTagConfig;
 import iskallia.vault.config.greed.GreedBoxConfig;
+import iskallia.vault.core.vault.Vault;
+import iskallia.vault.core.vault.VaultUtils;
+import iskallia.vault.core.vault.influence.VaultGod;
+import iskallia.vault.core.vault.modifier.spi.VaultModifier;
 import iskallia.vault.gear.charm.CharmEffect;
 import iskallia.vault.gear.data.AttributeGearData;
 import iskallia.vault.gear.reader.DecimalModifierReader;
@@ -28,9 +32,14 @@ import iskallia.vault.item.TitleScrollItem;
 import iskallia.vault.item.VaultDollItem;
 import iskallia.vault.item.gear.CharmItem;
 import iskallia.vault.item.gear.GreedTrinketItem;
+import iskallia.vault.item.gear.GreedyCharmItem;
+import iskallia.vault.item.gear.TemporalShardItem;
 import iskallia.vault.item.gear.TrinketItem;
+import iskallia.vault.item.gear.VaultCharmItem;
 import iskallia.vault.item.modification.ReforgeTagModificationFocus;
+import iskallia.vault.skill.prestige.helper.PrestigeHelper;
 import iskallia.vault.util.MiscUtils;
+import iskallia.vault.util.SidedHelper;
 import iskallia.vault.util.TextUtil;
 import net.minecraft.ChatFormatting;
 import net.minecraft.nbt.CompoundTag;
@@ -56,6 +65,8 @@ final class MiscItemTooltips
     private static final String COMBINED_TRINKET_CLASS = "xyz.iwolfking.woldsvaults.items.CombinedTrinketItem";
 
     private static final String VAULT_CHARM_SLOT = "vault_charm";
+
+    private static final int GREEDY_CHARM_VALUE_COLOUR = 0xFFC530;
 
 
     private MiscItemTooltips()
@@ -497,6 +508,113 @@ final class MiscItemTooltips
             new TextComponent(shards + " Soul Shard" + (shards == 1 ? "" : "s")).withStyle(ChatFormatting.GOLD));
         TooltipLines.appendTextLine(builder,
             new TextComponent("Becomes a Vault Pouch in your inventory").withStyle(ChatFormatting.GRAY));
+    }
+
+
+    /**
+     * Writes a rolled Greedy Charm's tooltip as Vault Hunters 7209 draws it without Shift, for the linking player: what
+     * the charm adds at the player's total reputation with the gods, that reputation, and the uses left (hidden for a
+     * player with the immortal charms prestige power). An unrolled charm's text is server-safe and comes from the game.
+     *
+     * @param builder Embed Builder.
+     * @param itemStack the charm.
+     * @param linkingPlayer the player who linked it, or null when unknown (reputation 0).
+     */
+    static void handleGreedyCharmTooltip(StringBuilder builder, ItemStack itemStack, ServerPlayer linkingPlayer)
+    {
+        if (ModConfigs.GREEDY_CHARM == null || !GreedyCharmItem.isRolled(itemStack))
+        {
+            return;
+        }
+
+        int reputation = MiscItemTooltips.totalReputation(linkingPlayer);
+        TooltipLines.appendTextLine(builder,
+            MiscItemTooltips.greedyCharmImpactLine(GreedyCharmItem.getDamagePerReputation(itemStack) * reputation, " more damage"));
+        TooltipLines.appendTextLine(builder,
+            MiscItemTooltips.greedyCharmImpactLine(GreedyCharmItem.getDamageTakenPerReputation(itemStack) * reputation, " less damage taken"));
+        TooltipLines.appendGameLine(builder, new TextComponent("Reputation: ").withStyle(ChatFormatting.GRAY).
+            append(new TextComponent(String.valueOf(reputation)).withStyle(ChatFormatting.WHITE)).
+            append(new TextComponent(" / " + GreedyCharmItem.MAX_TOTAL_REPUTATION).withStyle(ChatFormatting.GRAY)));
+
+        if (reputation == 0)
+        {
+            TooltipLines.appendTextLine(builder, new TextComponent("Earn reputation with the gods to wake it").withStyle(ChatFormatting.DARK_GRAY));
+        }
+
+        if (linkingPlayer == null || !VaultCharmItem.hasImmortalCharms(PrestigeHelper.getPrestige(linkingPlayer)))
+        {
+            TooltipLines.appendGameLine(builder, VaultCharmItem.usesLine(itemStack, false));
+        }
+    }
+
+
+    private static int totalReputation(ServerPlayer player)
+    {
+        if (player == null)
+        {
+            return 0;
+        }
+
+        int total = 0;
+
+        for (VaultGod god : VaultGod.values())
+        {
+            total += SidedHelper.getGodReputation(player, god).orElse(0);
+        }
+
+        return total;
+    }
+
+
+    private static Component greedyCharmImpactLine(float share, String words)
+    {
+        return new TextComponent(Math.round(share * 100.0F) + "%").withStyle(Style.EMPTY.withColor(GREEDY_CHARM_VALUE_COLOUR)).
+            append(new TextComponent(words).withStyle(ChatFormatting.WHITE));
+    }
+
+
+    /**
+     * Writes an identified Temporal Shard's tooltip as Vault Hunters 7209 draws it without Shift: its vault modifier, the
+     * duration, and whether it can be consumed where the linking player is.
+     *
+     * @param builder Embed Builder.
+     * @param itemStack the shard.
+     * @param linkingPlayer the player who linked it, or null when unknown (taken as outside a vault).
+     */
+    static void handleTemporalShardTooltip(StringBuilder builder, ItemStack itemStack, ServerPlayer linkingPlayer)
+    {
+        if (!LegacyVaultItemApi.hasTemporalModifierLock() || !TemporalShardItem.isIdentified(itemStack))
+        {
+            return;
+        }
+
+        VaultModifier<?> modifier = TemporalShardItem.getVaultModifier(itemStack);
+
+        if (modifier == null)
+        {
+            return;
+        }
+
+        Style modifierStyle = Style.EMPTY.withColor(modifier.getDisplayTextColor());
+        TooltipLines.appendGameLine(builder, new TextComponent("Modifier: ").withStyle(ChatFormatting.WHITE).
+            append(new TextComponent(modifier.getDisplayName()).withStyle(modifierStyle)));
+        TooltipLines.appendGameLine(builder, new TextComponent("Duration: ").withStyle(ChatFormatting.WHITE).
+            append(new TextComponent(TooltipLines.formatTimeString(TemporalShardItem.getDuration(itemStack))).withStyle(modifierStyle)));
+
+        Optional<Vault> vault = linkingPlayer == null ? Optional.empty() : VaultUtils.getVault(linkingPlayer.level);
+
+        if (vault.isEmpty())
+        {
+            TooltipLines.appendTextLine(builder, new TextComponent("Consume this relic in a vault to gain its effects").withStyle(ChatFormatting.RED));
+        }
+        else if (VaultUtils.isSpecialVault(vault.get()) || VaultUtils.hasNoTemporalModifier(vault.get()))
+        {
+            TooltipLines.appendTextLine(builder, new TextComponent("This relic is locked due to the objective of this vault.").withStyle(ChatFormatting.RED));
+        }
+        else
+        {
+            TooltipLines.appendTextLine(builder, new TextComponent("Consume this relic to gain its effects").withStyle(ChatFormatting.GRAY));
+        }
     }
 
 

@@ -52,14 +52,20 @@ import iskallia.vault.item.crystal.time.CrystalTime;
 import iskallia.vault.item.crystal.time.NullCrystalTime;
 import iskallia.vault.item.crystal.time.PoolCrystalTime;
 import iskallia.vault.item.crystal.time.ValueCrystalTime;
+import iskallia.vault.util.SidedHelper;
+import iskallia.vault.world.theme.ThemeMobGroups;
+import iskallia.vault.world.theme.ThemeSeries;
 import net.minecraft.ChatFormatting;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.Tag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.network.chat.Style;
+import net.minecraft.network.chat.TextColor;
 import net.minecraft.network.chat.TextComponent;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.TooltipFlag;
 
@@ -76,6 +82,8 @@ final class CrystalTooltips
     private static final int CLARITY_COLOUR = 0x4BE3C5;
 
     private static final int CATALYST_SIZE_COLOUR = 0xDDDDDD;
+
+    private static final int SEASONAL_THEME_COLOUR = 0xFFAA00;
 
     private static final String CURSE = "\u2620";
 
@@ -267,13 +275,14 @@ final class CrystalTooltips
 
 
     /**
-     * Writes a sigil's tooltip as the game draws it. The game counts the crate tiers for the viewer's vault level; with
-     * no viewer here, the sigil's highest level is used.
+     * Writes a sigil's tooltip as the game draws it, with the crate tiers counted for the linking player's vault level,
+     * as the game counts them for the viewer's.
      *
      * @param builder Embed Builder.
      * @param itemStack the sigil.
+     * @param linkingPlayer the player who linked it, or null when unknown (the sigil's highest level is used).
      */
-    static void handleSigilTooltip(StringBuilder builder, ItemStack itemStack)
+    static void handleSigilTooltip(StringBuilder builder, ItemStack itemStack, ServerPlayer linkingPlayer)
     {
         SigilItem.readSigil(itemStack).ifPresent(sigil ->
         {
@@ -287,7 +296,8 @@ final class CrystalTooltips
 
             if (sigilConfig != null)
             {
-                int crateTiers = sigilConfig.getLevel(Integer.MAX_VALUE).getExtraCrateTiers();
+                int vaultLevel = linkingPlayer == null ? Integer.MAX_VALUE : SidedHelper.getVaultLevel(linkingPlayer);
+                int crateTiers = sigilConfig.getLevel(vaultLevel).getExtraCrateTiers();
                 TooltipLines.appendTextLine(builder, new TextComponent("+").withStyle(ChatFormatting.GRAY).
                     append(new TextComponent(String.valueOf(crateTiers)).withStyle(ChatFormatting.WHITE)).
                     append(" Crate Tiers"));
@@ -297,17 +307,75 @@ final class CrystalTooltips
 
 
     /**
-     * Writes an augment's tooltip as the game draws it. Wold's Vaults' Infused Augment draws its theme in a rainbow
-     * built with client classes, so that line is rebuilt here; a Vault Hunters augment writes its own lines.
+     * A theme series augment's lines as Vault Hunters 7209 writes them: the biomes, each mob group with its families at the
+     * player's vault level, the perk, the seasonal mark, and the conversion line for an augment that still names a theme.
      *
      * @param builder Embed Builder.
      * @param itemStack the augment.
+     * @param series the augment's series.
+     * @param linkingPlayer the player who linked it, or null when unknown.
      */
-    static void handleAugmentTooltip(StringBuilder builder, ItemStack itemStack)
+    private static void appendSeriesLines(StringBuilder builder, ItemStack itemStack, ThemeSeries series, ServerPlayer linkingPlayer)
+    {
+        TextColor seriesColour = TextColor.fromRgb(series.readableColor());
+        TooltipLines.appendGameLine(builder, new TextComponent("Biomes: ").withStyle(ChatFormatting.GRAY).
+            append(new TextComponent(String.join(", ", series.biomeNames())).withStyle(ChatFormatting.WHITE)));
+
+        int vaultLevel = linkingPlayer == null ? 0 : SidedHelper.getVaultLevel(linkingPlayer);
+        ThemeMobGroups.of(series.id(), vaultLevel).ifPresent(mobs ->
+            mobs.groups().stream().
+                filter(stock -> !stock.families().isEmpty()).
+                forEach(stock -> TooltipLines.appendGameLine(builder, new TextComponent(stock.group().displayName() + ": ").withStyle(ChatFormatting.GRAY).
+                    append(new TextComponent(String.join(", ", stock.families())).withStyle(ChatFormatting.WHITE)))));
+
+        if (!series.perk().isEmpty())
+        {
+            TooltipLines.appendGameLine(builder, new TextComponent("Perk: ").withStyle(ChatFormatting.GRAY).
+                append(new TextComponent(series.perk()).withStyle(Style.EMPTY.withColor(seriesColour))));
+        }
+
+        if (series.seasonal())
+        {
+            TooltipLines.appendTextLine(builder, new TextComponent("Seasonal theme").withStyle(Style.EMPTY.withColor(SEASONAL_THEME_COLOUR)));
+        }
+
+        CompoundTag tag = itemStack.getTag();
+        boolean namesTheme = tag != null && !tag.contains("series", Tag.TAG_STRING) && tag.contains("theme", Tag.TAG_STRING);
+
+        if (namesTheme && ThemeSeries.ofTheme(ResourceLocation.tryParse(tag.getString("theme"))).isPresent())
+        {
+            TooltipLines.appendTextLine(builder,
+                new TextComponent("Turns into a " + series.displayName() + " Augment in your inventory").withStyle(ChatFormatting.DARK_GRAY));
+        }
+    }
+
+
+    /**
+     * Writes an augment's tooltip as the game draws it. Wold's Vaults' Infused Augment draws its theme in a rainbow
+     * built with client classes, so that line is rebuilt here; a Vault Hunters 7209 augment of a theme series lists the
+     * series' mobs for the viewer's vault level (read on the client), so those lines are rebuilt for the linking player;
+     * any other augment writes its own lines.
+     *
+     * @param builder Embed Builder.
+     * @param itemStack the augment.
+     * @param linkingPlayer the player who linked it, or null when unknown (vault level 0).
+     */
+    static void handleAugmentTooltip(StringBuilder builder, ItemStack itemStack, ServerPlayer linkingPlayer)
     {
         if (!itemStack.getItem().getClass().getName().equals(INFUSED_AUGMENT_CLASS))
         {
-            TooltipLines.appendItemGameLines(builder, itemStack);
+            Optional<ThemeSeries> series = LegacyVaultItemApi.hasThemeSeries() ?
+                AugmentItem.getSeries(itemStack).flatMap(ThemeSeries::byId) : Optional.empty();
+
+            if (series.isPresent())
+            {
+                CrystalTooltips.appendSeriesLines(builder, itemStack, series.get(), linkingPlayer);
+            }
+            else
+            {
+                TooltipLines.appendItemGameLines(builder, itemStack);
+            }
+
             return;
         }
 
