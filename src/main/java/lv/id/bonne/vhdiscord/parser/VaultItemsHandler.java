@@ -296,7 +296,7 @@ public class VaultItemsHandler
         {
             for (String line : text.split("\n"))
             {
-                VaultItemsHandler.appendTextLine(builder, TextUtil.applyColorTags(line).withStyle(ChatFormatting.GRAY));
+                TooltipLines.appendTextLine(builder, TextUtil.applyColorTags(line).withStyle(ChatFormatting.GRAY));
             }
 
             builder.append("\n");
@@ -321,7 +321,7 @@ public class VaultItemsHandler
 
         if (value != null && value > 0)
         {
-            VaultItemsHandler.appendGameLine(builder, new TextComponent("Soul Value: ").withStyle(ChatFormatting.GRAY).
+            TooltipLines.appendGameLine(builder, new TextComponent("Soul Value: ").withStyle(ChatFormatting.GRAY).
                 append(new TextComponent(String.valueOf(value)).withStyle(ChatFormatting.DARK_PURPLE)));
         }
     }
@@ -362,7 +362,7 @@ public class VaultItemsHandler
             map(curio -> curio.getSlotsTooltip(tagLines)).
             orElse(tagLines);
 
-        lines.forEach(line -> VaultItemsHandler.appendGameLine(builder, line));
+        lines.forEach(line -> TooltipLines.appendGameLine(builder, line));
     }
 
 
@@ -574,7 +574,7 @@ public class VaultItemsHandler
             return;
         }
 
-        if (itemStack.getItem() instanceof VoidStoneItem && ModList.get().isLoaded(WOLDS_VAULTS_MOD_ID))
+        if (itemStack.getItem() instanceof VoidStoneItem && ModList.get().isLoaded(TooltipLines.WOLDS_VAULTS_MOD_ID))
         {
             return;
         }
@@ -590,13 +590,13 @@ public class VaultItemsHandler
 
         // Add gear Level
         builder.append("**Level:** ").append(data.getItemLevel()).append("\n");
-        TooltipColorHints.recordValue("Level", LEVEL_COLOUR);
+        TooltipColorHints.recordValue("Level", TooltipLines.LEVEL_COLOUR);
 
         // Add crafter name
         data.getFirstValue(ModGearAttributes.CRAFTED_BY).ifPresent(crafter ->
         {
             builder.append("**Crafted by:** ").append(crafter).append("\n");
-            TooltipColorHints.recordValue("Crafted by", CRAFTER_COLOUR);
+            TooltipColorHints.recordValue("Crafted by", TooltipLines.CRAFTER_COLOUR);
         });
 
         // Add Rarity
@@ -761,14 +761,14 @@ public class VaultItemsHandler
         if (state == VaultGearState.IDENTIFIED)
         {
             int remaining = Math.max(VaultUsesHelper.getUses(itemStack) - VaultUsesHelper.getUsedVaults(itemStack).size(), 0);
-            VaultItemsHandler.appendGameLine(builder, new TextComponent("Uses: ").withStyle(ChatFormatting.GRAY).
+            TooltipLines.appendGameLine(builder, new TextComponent("Uses: ").withStyle(ChatFormatting.GRAY).
                 append(new TextComponent(String.valueOf(remaining)).withStyle(ChatFormatting.WHITE)));
         }
 
-        VaultItemsHandler.appendGameLine(builder, new TextComponent("Reputation: ").withStyle(ChatFormatting.GRAY).
+        TooltipLines.appendGameLine(builder, new TextComponent("Reputation: ").withStyle(ChatFormatting.GRAY).
             append(new TextComponent(String.valueOf(VaultCharmItem.getGodReputation(itemStack))).withStyle(ChatFormatting.WHITE)));
         VaultCharmItem.getGod(itemStack).ifPresent(god ->
-            VaultItemsHandler.appendGameLine(builder, new TextComponent("Vault God: ").
+            TooltipLines.appendGameLine(builder, new TextComponent("Vault God: ").
                 append(new TextComponent(god.getName()).withStyle(god.getChatColor()))));
 
         if (state == VaultGearState.UNIDENTIFIED)
@@ -783,7 +783,7 @@ public class VaultItemsHandler
             return;
         }
 
-        if (ModList.get().isLoaded(WOLDS_VAULTS_MOD_ID))
+        if (ModList.get().isLoaded(TooltipLines.WOLDS_VAULTS_MOD_ID))
         {
             data.getModifiers(VaultGearModifier.AffixType.IMPLICIT).forEach(modifier ->
                 VaultItemsHandler.addAffix(builder, modifier, data, VaultGearModifier.AffixType.IMPLICIT, itemStack));
@@ -810,18 +810,18 @@ public class VaultItemsHandler
         {
             if (identified)
             {
-                VaultItemsHandler.appendGameLine(builder, VaultItemsHandler.usesLine(necklace, itemStack));
+                TooltipLines.appendGameLine(builder, VaultItemsHandler.usesLine(necklace, itemStack));
             }
             else
             {
-                VaultItemsHandler.appendStyledLine(builder,
+                TooltipLines.appendStyledLine(builder,
                     "Right click to identify",
                     new TextComponent("Right click to identify").withStyle(ChatFormatting.GRAY));
             }
         }
         else if (itemStack.getItem() instanceof VoidStoneItem voidStone && identified)
         {
-            VaultItemsHandler.appendGameLine(builder, VaultItemsHandler.usesLine(voidStone, itemStack));
+            TooltipLines.appendGameLine(builder, VaultItemsHandler.usesLine(voidStone, itemStack));
         }
     }
 
@@ -883,25 +883,25 @@ public class VaultItemsHandler
         DrinkMode drinkMode = BottleItem.getDrinkMode(itemStack);
         float healing = PotionTiers.tierOf(player).getHeal() * (1.0F + PlayerRecoveryHelper.getHealingEfficiency(player));
 
-        VaultItemsHandler.appendTextLine(builder, VaultItemsHandler.bottleLabelled("Charges",
+        TooltipLines.appendTextLine(builder, VaultItemsHandler.bottleLabelled("Charges",
             new TextComponent(charges + " / " + maxCharges).withStyle(Style.EMPTY.withColor(POTION_VALUE_COLOUR))));
-        VaultItemsHandler.appendTextLine(builder, VaultItemsHandler.bottleLabelled("Drink Mode",
+        TooltipLines.appendTextLine(builder, VaultItemsHandler.bottleLabelled("Drink Mode",
             new TextComponent(drinkMode.getDisplayName()).withStyle(Style.EMPTY.withColor(drinkMode.getColor()))));
         builder.append("\n");
-        VaultItemsHandler.appendTextLine(builder, new TextComponent("Heals  ").withStyle(Style.EMPTY.withColor(POTION_VALUE_COLOUR)).
+        TooltipLines.appendTextLine(builder, new TextComponent("Heals  ").withStyle(Style.EMPTY.withColor(POTION_VALUE_COLOUR)).
             append(new TextComponent(Math.round(healing) + " Hit Points").withStyle(ChatFormatting.RED)));
         VaultItemsHandler.appendBottleEffectLines(builder, itemStack, player);
         builder.append("\n");
-        VaultItemsHandler.appendTextLine(builder,
+        TooltipLines.appendTextLine(builder,
             new TextComponent("Fills from kills and chests in a vault").withStyle(ChatFormatting.GRAY));
-        VaultItemsHandler.appendTextLine(builder, new TextComponent("Right-click to equip it").withStyle(ChatFormatting.DARK_GRAY));
+        TooltipLines.appendTextLine(builder, new TextComponent("Right-click to equip it").withStyle(ChatFormatting.DARK_GRAY));
 
         if (BottleItem.getBoundVault(itemStack).isPresent())
         {
             boolean full = charges >= maxCharges;
             String fill = full ? "100%" : Math.round(BottleItem.getFill(itemStack) * 100.0F) + "%";
 
-            VaultItemsHandler.appendTextLine(builder, new TextComponent((full ? "Full" : "Next charge") + "  ").withStyle(ChatFormatting.GRAY).
+            TooltipLines.appendTextLine(builder, new TextComponent((full ? "Full" : "Next charge") + "  ").withStyle(ChatFormatting.GRAY).
                 append(new TextComponent(fill).withStyle(Style.EMPTY.withColor(POTION_FILL_COLOUR))));
         }
     }
@@ -927,16 +927,16 @@ public class VaultItemsHandler
             if (effect.isPresent())
             {
                 shownEffects.add(effect.get());
-                VaultItemsHandler.appendTextLine(builder,
+                TooltipLines.appendTextLine(builder,
                     VaultItemsHandler.bottleEffectLine(player, effect.get(), PotionRolls.valueOf(player, effect.get())));
             }
             else
             {
-                VaultItemsHandler.appendTextLine(builder, new TextComponent("Empty slot").withStyle(ChatFormatting.DARK_GRAY));
+                TooltipLines.appendTextLine(builder, new TextComponent("Empty slot").withStyle(ChatFormatting.DARK_GRAY));
             }
         }
 
-        BottleItem.getInfused(itemStack).ifPresent(infusion -> VaultItemsHandler.appendTextLine(builder,
+        BottleItem.getInfused(itemStack).ifPresent(infusion -> TooltipLines.appendTextLine(builder,
             VaultItemsHandler.bottleEffectLine(player, infusion.effect(), infusion.roll()).
                 append(new TextComponent("  Infused").withStyle(ChatFormatting.DARK_GRAY))));
     }
@@ -970,26 +970,26 @@ public class VaultItemsHandler
             {
                 switch (recharge)
                 {
-                    case "TIME" -> VaultItemsHandler.appendTextLine(builder,
+                    case "TIME" -> TooltipLines.appendTextLine(builder,
                         new TextComponent("Passively restores charges while inside a vault").withStyle(ChatFormatting.GRAY));
-                    case "MOBS" -> VaultItemsHandler.appendTextLine(builder,
+                    case "MOBS" -> TooltipLines.appendTextLine(builder,
                         new TextComponent("Kill vault mobs to restore charges").withStyle(ChatFormatting.GRAY));
-                    case "CHESTS" -> VaultItemsHandler.appendTextLine(builder,
+                    case "CHESTS" -> TooltipLines.appendTextLine(builder,
                         new TextComponent("Loot vault chests to restore charges").withStyle(ChatFormatting.GRAY));
                 }
             });
 
-            VaultItemsHandler.appendTextLine(builder, new TextComponent("Consume a ").
+            TooltipLines.appendTextLine(builder, new TextComponent("Consume a ").
                 append(new TextComponent("charge").withStyle(ChatFormatting.WHITE)).
                 append(new TextComponent(" to")).
                 withStyle(Style.EMPTY.withColor(BOTTLE_TEXT_COLOUR)));
-            VaultItemsHandler.appendTextLine(builder, new TextComponent(" " + DOT + " Heal ").
+            TooltipLines.appendTextLine(builder, new TextComponent(" " + TooltipLines.DOT + " Heal ").
                 append(new TextComponent(String.valueOf(LegacyVaultItemApi.bottleHealing(type)))).
                 append(new TextComponent(" Hit Points")).
                 withStyle(ChatFormatting.GREEN));
 
             LegacyVaultItemApi.bottleEffectTooltip(itemStack).ifPresent(effect ->
-                VaultItemsHandler.appendTextLine(builder, new TextComponent(" " + DOT + " ").append(effect)));
+                TooltipLines.appendTextLine(builder, new TextComponent(" " + TooltipLines.DOT + " ").append(effect)));
         });
     }
 
@@ -1005,28 +1005,28 @@ public class VaultItemsHandler
         {
             VaultItemsConfig.VaultDoll config = ModConfigs.VAULT_ITEMS.VAULT_DOLL;
 
-            VaultItemsHandler.appendGameLine(builder, new TranslatableComponent("tooltip.the_vault.doll_owner",
+            TooltipLines.appendGameLine(builder, new TranslatableComponent("tooltip.the_vault.doll_owner",
                 new TextComponent(profile.getName()).withStyle(ChatFormatting.WHITE)).withStyle(ChatFormatting.GRAY));
-            VaultItemsHandler.appendGameLine(builder, VaultItemsHandler.dollEfficiencyLine("tooltip.the_vault.doll_loot_efficiency",
+            TooltipLines.appendGameLine(builder, VaultItemsHandler.dollEfficiencyLine("tooltip.the_vault.doll_loot_efficiency",
                 itemTag.getFloat("lootPercent"),
                 config.lootPercentageMin,
                 config.lootPercentageMax));
-            VaultItemsHandler.appendGameLine(builder, VaultItemsHandler.dollEfficiencyLine("tooltip.the_vault.doll_experience_efficiency",
+            TooltipLines.appendGameLine(builder, VaultItemsHandler.dollEfficiencyLine("tooltip.the_vault.doll_experience_efficiency",
                 itemTag.getFloat("xpPercent"),
                 config.xpPercentageMin,
                 config.xpPercentageMax));
 
             if (itemTag.contains("vaultUUID"))
             {
-                VaultItemsHandler.appendGameLine(builder, new TranslatableComponent("tooltip.the_vault.doll_status.completed_by",
+                TooltipLines.appendGameLine(builder, new TranslatableComponent("tooltip.the_vault.doll_status.completed_by",
                     itemTag.getString("completedBy"),
                     itemTag.getInt("vaultLevel")).withStyle(ChatFormatting.GRAY));
-                VaultItemsHandler.appendGameLine(builder,
+                TooltipLines.appendGameLine(builder,
                     new TranslatableComponent("tooltip.the_vault.doll_status.completed").withStyle(ChatFormatting.GREEN));
             }
             else
             {
-                VaultItemsHandler.appendGameLine(builder,
+                TooltipLines.appendGameLine(builder,
                     new TranslatableComponent("tooltip.the_vault.doll_status.ready").withStyle(ChatFormatting.WHITE));
             }
         });
@@ -1076,7 +1076,7 @@ public class VaultItemsHandler
 
         if (etchingId == null)
         {
-            VaultItemsHandler.appendStyledLine(builder,
+            TooltipLines.appendStyledLine(builder,
                 "No Etching Applied",
                 new TextComponent("No Etching Applied").withStyle(ChatFormatting.GRAY));
             return;
@@ -1086,21 +1086,21 @@ public class VaultItemsHandler
 
         if (entry == null)
         {
-            VaultItemsHandler.appendStyledLine(builder,
+            TooltipLines.appendStyledLine(builder,
                 "Unknown Etching",
                 new TextComponent("Unknown Etching").withStyle(ChatFormatting.RED));
             return;
         }
 
         VaultItemsHandler.greedTierOf(data).ifPresent(greedTier ->
-            VaultItemsHandler.appendGameLine(builder, new TextComponent("Greed Tier: ").
-                append(new TextComponent(String.valueOf(greedTier)).withStyle(Style.EMPTY.withColor(LEVEL_COLOUR)))));
+            TooltipLines.appendGameLine(builder, new TextComponent("Greed Tier: ").
+                append(new TextComponent(String.valueOf(greedTier)).withStyle(Style.EMPTY.withColor(TooltipLines.LEVEL_COLOUR)))));
 
         Component description = TextUtil.applyColorTags(VaultItemsHandler.etchingDescription(entry.getDescription(), itemStack));
-        VaultItemsHandler.appendStyledLine(builder, description.getString(), description);
+        TooltipLines.appendStyledLine(builder, description.getString(), description);
         builder.append("\n");
 
-        VaultItemsHandler.appendGameLine(builder, new TextComponent("Type: ").withStyle(ChatFormatting.GRAY).
+        TooltipLines.appendGameLine(builder, new TextComponent("Type: ").withStyle(ChatFormatting.GRAY).
             append(new TextComponent(String.join(", ", entry.getTypeGroups())).withStyle(ChatFormatting.WHITE)));
     }
 
@@ -1182,39 +1182,39 @@ public class VaultItemsHandler
 
         if (compoundTag.contains("completion"))
         {
-            VaultItemsHandler.appendGameLine(builder, new TextComponent("Completion: ").
+            TooltipLines.appendGameLine(builder, new TextComponent("Completion: ").
                 append(new TextComponent(Math.round(compoundTag.getFloat("completion") * 100.0F) + "%").
                     withStyle(Style.EMPTY.withColor(INSCRIPTION_COMPLETION_COLOUR))));
         }
 
         if (data.getTime() != null)
         {
-            VaultItemsHandler.appendGameLine(builder, new TextComponent("Time: ").
-                append(new TextComponent(VaultItemsHandler.formatTimeString(data.getTime())).withStyle(ChatFormatting.GRAY)));
+            TooltipLines.appendGameLine(builder, new TextComponent("Time: ").
+                append(new TextComponent(TooltipLines.formatTimeString(data.getTime())).withStyle(ChatFormatting.GRAY)));
         }
 
         if (compoundTag.contains("instability"))
         {
-            VaultItemsHandler.appendGameLine(builder, new TextComponent("Instability: ").
+            TooltipLines.appendGameLine(builder, new TextComponent("Instability: ").
                 append(new TextComponent("%.1f%%".formatted(compoundTag.getFloat("instability") * 100.0F)).
                     withStyle(ChatFormatting.RED)));
         }
 
         if (!data.isSuper())
         {
-            VaultItemsHandler.appendGameLine(builder, new TextComponent("Size: ").
+            TooltipLines.appendGameLine(builder, new TextComponent("Size: ").
                 append(new TextComponent(String.valueOf(data.getSize())).withStyle(ChatFormatting.RED)));
         }
 
         for (InscriptionData.Entry entry : data.getEntries())
         {
             String roomStr = entry.count > 1 ? "Rooms" : "Room";
-            Component line = new TextComponent(" " + DOT + " ").withStyle(ChatFormatting.GRAY).
+            Component line = new TextComponent(" " + TooltipLines.DOT + " ").withStyle(ChatFormatting.GRAY).
                 append(new TextComponent(String.valueOf(entry.count)).withStyle(ChatFormatting.GRAY)).
                 append(" ").
                 append(entry.toRoomEntry().getName()).
                 append(new TextComponent(" " + roomStr).withStyle(ChatFormatting.GRAY));
-            VaultItemsHandler.appendStyledLine(builder, line.getString(), line);
+            TooltipLines.appendStyledLine(builder, line.getString(), line);
         }
 
         for (ResourceLocation modifierId : data.getModifiers())
@@ -1222,15 +1222,15 @@ public class VaultItemsHandler
             VaultModifierRegistry.getOpt(modifierId).ifPresent(vaultModifier ->
             {
                 TextColor textColor = vaultModifier.getDisplayTextColor();
-                Component line = new TextComponent(" " + DOT + " " + vaultModifier.getDisplayName()).
+                Component line = new TextComponent(" " + TooltipLines.DOT + " " + vaultModifier.getDisplayName()).
                     withStyle(textColor == null ? Style.EMPTY : Style.EMPTY.withColor(textColor));
-                VaultItemsHandler.appendStyledLine(builder, line.getString(), line);
+                TooltipLines.appendStyledLine(builder, line.getString(), line);
             });
         }
 
         if (data.getEchoCost() != null)
         {
-            VaultItemsHandler.appendGameLine(builder, new TextComponent("Echo Cost: ").
+            TooltipLines.appendGameLine(builder, new TextComponent("Echo Cost: ").
                 append(new TextComponent(String.valueOf(data.getEchoCost())).withStyle(ChatFormatting.DARK_PURPLE)));
         }
     }
@@ -1251,7 +1251,7 @@ public class VaultItemsHandler
         }
         else
         {
-            gameLines.forEach(line -> VaultItemsHandler.appendGameLine(builder, line));
+            gameLines.forEach(line -> TooltipLines.appendGameLine(builder, line));
         }
 
         // Modifiers
@@ -1296,143 +1296,6 @@ public class VaultItemsHandler
         }
 
         return lines;
-    }
-
-
-    /**
-     * Writes one game tooltip line as markdown ({@code **Label:** value}, or the whole line bold when it has no label)
-     * and notes its styled runs, so the in-game picture draws it in the game's colours; a line holding line breaks is
-     * written as several lines.
-     *
-     * @param builder Embed Builder.
-     * @param line the game's line.
-     */
-    private static void appendGameLine(StringBuilder builder, Component line)
-    {
-        String raw = line.getString();
-        String text = raw.strip();
-        int separator = text.indexOf(": ");
-
-        if (raw.indexOf('\n') >= 0)
-        {
-            VaultItemsHandler.splitAtLineBreaks(line).forEach(part -> VaultItemsHandler.appendGameLine(builder, part));
-        }
-        else if (separator > 0)
-        {
-            VaultItemsHandler.appendStyledLine(builder,
-                "**" + text.substring(0, separator) + ":** " + text.substring(separator + 2),
-                line);
-        }
-        else if (text.isEmpty())
-        {
-            builder.append("\n");
-        }
-        else
-        {
-            VaultItemsHandler.appendStyledLine(builder, "**" + text + "**", line);
-        }
-    }
-
-
-    /**
-     * Splits a component at its line breaks, each part keeping its styles; config texts such as augment lore hold several
-     * tooltip lines in one component.
-     *
-     * @param component the component.
-     * @return one component per line.
-     */
-    private static List<MutableComponent> splitAtLineBreaks(Component component)
-    {
-        List<MutableComponent> lines = new ArrayList<>(List.of(new TextComponent("")));
-
-        component.visit((style, text) ->
-        {
-            String[] parts = text.split("\n", -1);
-
-            for (int index = 0; index < parts.length; index++)
-            {
-                if (index > 0)
-                {
-                    lines.add(new TextComponent(""));
-                }
-
-                if (!parts[index].isEmpty())
-                {
-                    lines.get(lines.size() - 1).append(new TextComponent(parts[index]).withStyle(style));
-                }
-            }
-
-            return Optional.empty();
-        }, Style.EMPTY);
-
-        return lines;
-    }
-
-
-    /**
-     * Writes a markdown line and notes the styled runs of the game's line it stands for, so the in-game picture draws
-     * that line in the game's colours instead of reading the markdown.
-     *
-     * @param builder Embed Builder.
-     * @param markdown the line as markdown.
-     * @param line the game's line.
-     */
-    private static void appendStyledLine(StringBuilder builder, String markdown, Component line)
-    {
-        builder.append(markdown).append("\n");
-        TooltipColorHints.record(markdown.replace("**", "").strip(), line);
-    }
-
-
-    /**
-     * Writes one game tooltip line as plain text, for description lines the game draws without a label, and notes its
-     * styled runs; an empty line stays blank.
-     *
-     * @param builder Embed Builder.
-     * @param line the game's line.
-     */
-    private static void appendTextLine(StringBuilder builder, Component line)
-    {
-        String text = line.getString().strip();
-
-        if (text.isEmpty())
-        {
-            builder.append("\n");
-        }
-        else
-        {
-            VaultItemsHandler.appendStyledLine(builder, text, line);
-        }
-    }
-
-
-    /**
-     * Writes the lines an item's own tooltip code writes, each as {@link #appendGameLine} does; for items whose tooltip
-     * Vault Hunters builds without client classes, so it runs on a dedicated server too.
-     *
-     * @param builder Embed Builder.
-     * @param itemStack the item.
-     */
-    private static void appendItemGameLines(StringBuilder builder, ItemStack itemStack)
-    {
-        List<Component> lines = new ArrayList<>();
-
-        try
-        {
-            itemStack.getItem().appendHoverText(itemStack, null, lines, TooltipFlag.Default.NORMAL);
-        }
-        catch (RuntimeException | LinkageError failure)
-        {
-            if (GAME_TEXT_FAILURES.add(itemStack.getItem().getClass().getName()))
-            {
-                LOGGER.warn("{} cannot write its tooltip on the server; its picture has no description",
-                    itemStack.getItem().getClass().getName(), failure);
-            }
-
-            return;
-        }
-
-        lines.forEach(line -> VaultItemsHandler.appendGameLine(builder, line));
     }
 
 
@@ -1512,7 +1375,7 @@ public class VaultItemsHandler
     {
         if (!TrinketItem.isIdentified(itemStack))
         {
-            VaultItemsHandler.appendStyledLine(builder,
+            TooltipLines.appendStyledLine(builder,
                 "Right click to identify",
                 new TextComponent("Right click to identify").withStyle(ChatFormatting.GRAY));
             return;
@@ -1521,12 +1384,12 @@ public class VaultItemsHandler
         int totalUses = itemTag.getInt("vaultUses");
         int used = itemTag.getList("usedVaults", 10).size();
         int remaining = Math.max(totalUses - used, 0);
-        VaultItemsHandler.appendGameLine(builder, new TextComponent("Uses: ").append(String.valueOf(remaining)));
+        TooltipLines.appendGameLine(builder, new TextComponent("Uses: ").append(String.valueOf(remaining)));
 
         AttributeGearData data = AttributeGearData.read(itemStack);
         data.getFirstValue(ModGearAttributes.CRAFTED_BY).ifPresent(crafter ->
-            VaultItemsHandler.appendGameLine(builder, new TextComponent("Crafted by: ").
-                append(new TextComponent(crafter).withStyle(Style.EMPTY.withColor(CRAFTER_COLOUR)))));
+            TooltipLines.appendGameLine(builder, new TextComponent("Crafted by: ").
+                append(new TextComponent(crafter).withStyle(Style.EMPTY.withColor(TooltipLines.CRAFTER_COLOUR)))));
 
         Optional<List<TrinketEffect<?>>> combined = VaultItemsHandler.combinedTrinketEffects(itemStack);
         List<TrinketEffect<?>> effects = combined.orElseGet(() -> itemStack.getItem() instanceof GreedTrinketItem ?
@@ -1544,14 +1407,14 @@ public class VaultItemsHandler
 
             if (combined.isPresent())
             {
-                VaultItemsHandler.appendStyledLine(builder,
+                TooltipLines.appendStyledLine(builder,
                     "**" + trinket.getName() + "**",
                     new TextComponent(trinket.getName()).withStyle(ChatFormatting.GOLD));
             }
 
             for (TextComponent line : MiscUtils.splitDescriptionText(trinket.getEffectText()))
             {
-                VaultItemsHandler.appendStyledLine(builder, line.getString(), line.withStyle(ChatFormatting.GRAY));
+                TooltipLines.appendStyledLine(builder, line.getString(), line.withStyle(ChatFormatting.GRAY));
             }
         }
 
@@ -1562,7 +1425,7 @@ public class VaultItemsHandler
         slot.ifPresent(identifier ->
         {
             builder.append("\n");
-            VaultItemsHandler.appendGameLine(builder, VaultItemsHandler.curiosSlotLine(identifier));
+            TooltipLines.appendGameLine(builder, VaultItemsHandler.curiosSlotLine(identifier));
         });
     }
 
@@ -1629,12 +1492,12 @@ public class VaultItemsHandler
 
         resourceLocation.flatMap(fragmentRegistry::get).ifPresent(relicModel ->
         {
-            VaultItemsHandler.appendGameLine(builder, new TextComponent("Assembles: ").
+            TooltipLines.appendGameLine(builder, new TextComponent("Assembles: ").
                 append(new TextComponent(relicModel.getDisplayName()).withStyle(Style.EMPTY.withColor(RELIC_COLOUR))));
             builder.append("\n");
-            VaultItemsHandler.appendTextLine(builder,
+            TooltipLines.appendTextLine(builder,
                 new TextComponent("Craft a Relic Pedestal to assemble").withStyle(ChatFormatting.GRAY));
-            VaultItemsHandler.appendTextLine(builder,
+            TooltipLines.appendTextLine(builder,
                 new TextComponent("this fragment into a Relic").withStyle(ChatFormatting.GRAY));
         });
     }
@@ -1649,21 +1512,21 @@ public class VaultItemsHandler
     {
         if (InfusedCatalystItem.isSuper(itemStack))
         {
-            VaultItemsHandler.appendTextLine(builder,
+            TooltipLines.appendTextLine(builder,
                 new TextComponent("Used to modify your Personal Vault").withStyle(ChatFormatting.GRAY));
         }
         else
         {
             InfusedCatalystItem.getSize(itemStack).ifPresentOrElse(
-                size -> VaultItemsHandler.appendGameLine(builder, new TextComponent("Size: ").
+                size -> TooltipLines.appendGameLine(builder, new TextComponent("Size: ").
                     append(new TextComponent(String.valueOf(size)).withStyle(Style.EMPTY.withColor(CATALYST_SIZE_COLOUR)))),
-                () -> VaultItemsHandler.appendGameLine(builder, new TextComponent("Size: ???").withStyle(ChatFormatting.GRAY)));
+                () -> TooltipLines.appendGameLine(builder, new TextComponent("Size: ???").withStyle(ChatFormatting.GRAY)));
         }
 
         for (ResourceLocation modifierId : InfusedCatalystItem.getModifiers(itemStack))
         {
             VaultModifierRegistry.getOpt(modifierId).ifPresent(vaultModifier ->
-                VaultItemsHandler.appendBulletModifierLine(builder, vaultModifier));
+                TooltipLines.appendBulletModifierLine(builder, vaultModifier));
         }
     }
 
@@ -1675,7 +1538,7 @@ public class VaultItemsHandler
      */
     public static void handleBaseCatalystTooltip(StringBuilder builder, ItemStack itemStack)
     {
-        VaultItemsHandler.appendItemGameLines(builder, itemStack);
+        TooltipLines.appendItemGameLines(builder, itemStack);
     }
 
 
@@ -1690,22 +1553,8 @@ public class VaultItemsHandler
         for (ResourceLocation modifierId : CompanionRelicItem.getModifiers(itemStack))
         {
             VaultModifierRegistry.getOpt(modifierId).ifPresent(vaultModifier ->
-                VaultItemsHandler.appendBulletModifierLine(builder, vaultModifier));
+                TooltipLines.appendBulletModifierLine(builder, vaultModifier));
         }
-    }
-
-
-    /**
-     * A modifier line as infused catalysts and companion relics draw it: a bullet and the modifier's name, all in the
-     * modifier's colour.
-     *
-     * @param builder Embed Builder.
-     * @param vaultModifier the modifier.
-     */
-    private static void appendBulletModifierLine(StringBuilder builder, VaultModifier<?> vaultModifier)
-    {
-        VaultItemsHandler.appendTextLine(builder, new TextComponent(" " + DOT + " " + vaultModifier.getDisplayName()).
-            withStyle(Style.EMPTY.withColor(vaultModifier.getDisplayTextColor())));
     }
 
 
@@ -1720,9 +1569,9 @@ public class VaultItemsHandler
     {
         SigilItem.readSigil(itemStack).ifPresent(sigil ->
         {
-            VaultItemsHandler.appendGameLine(builder, new TextComponent("Sigil: ").withStyle(ChatFormatting.GRAY).
+            TooltipLines.appendGameLine(builder, new TextComponent("Sigil: ").withStyle(ChatFormatting.GRAY).
                 append(new TextComponent(sigil.getDisplayName()).withStyle(Style.EMPTY.withColor(sigil.getColor()))));
-            VaultItemsHandler.appendTextLine(builder, new TextComponent("+").withStyle(ChatFormatting.GRAY).
+            TooltipLines.appendTextLine(builder, new TextComponent("+").withStyle(ChatFormatting.GRAY).
                 append(new TextComponent(PERCENT_FORMAT.format(sigil.getDifficulty())).withStyle(ChatFormatting.WHITE)).
                 append(" Difficulty"));
 
@@ -1731,7 +1580,7 @@ public class VaultItemsHandler
             if (sigilConfig != null)
             {
                 int crateTiers = sigilConfig.getLevel(Integer.MAX_VALUE).getExtraCrateTiers();
-                VaultItemsHandler.appendTextLine(builder, new TextComponent("+").withStyle(ChatFormatting.GRAY).
+                TooltipLines.appendTextLine(builder, new TextComponent("+").withStyle(ChatFormatting.GRAY).
                     append(new TextComponent(String.valueOf(crateTiers)).withStyle(ChatFormatting.WHITE)).
                     append(" Crate Tiers"));
             }
@@ -1743,7 +1592,7 @@ public class VaultItemsHandler
     {
         DeckSocketItem.getDeckModifier(itemStack).
             map(DeckTooltips::modifierLines).
-            ifPresent(lines -> lines.forEach(line -> VaultItemsHandler.appendStyledLine(builder, line.getString(), line)));
+            ifPresent(lines -> lines.forEach(line -> TooltipLines.appendStyledLine(builder, line.getString(), line)));
     }
 
 
@@ -1831,22 +1680,22 @@ public class VaultItemsHandler
     {
         if (!itemStack.getItem().getClass().getName().equals(INFUSED_AUGMENT_CLASS))
         {
-            VaultItemsHandler.appendItemGameLines(builder, itemStack);
+            TooltipLines.appendItemGameLines(builder, itemStack);
             return;
         }
 
         AugmentItem.getTheme(itemStack).ifPresent(key ->
             ModConfigs.THEME_AUGMENT_LORE.getAugmentLore(key.getId()).ifPresentOrElse(lore ->
                 {
-                    VaultItemsHandler.appendGameLine(builder, new TextComponent("Theme: ").withStyle(ChatFormatting.GRAY).
+                    TooltipLines.appendGameLine(builder, new TextComponent("Theme: ").withStyle(ChatFormatting.GRAY).
                         append(VaultItemsHandler.rainbowText(lore.displayName + " | " + key.getName())));
 
                     for (DescriptionData description : lore.description)
                     {
-                        VaultItemsHandler.appendGameLine(builder, description.getComponent());
+                        TooltipLines.appendGameLine(builder, description.getComponent());
                     }
                 },
-                () -> VaultItemsHandler.appendGameLine(builder, new TextComponent("Theme: ").withStyle(ChatFormatting.GRAY).
+                () -> TooltipLines.appendGameLine(builder, new TextComponent("Theme: ").withStyle(ChatFormatting.GRAY).
                     append(VaultItemsHandler.rainbowText(key.getName())))));
     }
 
@@ -1884,14 +1733,14 @@ public class VaultItemsHandler
     @SuppressWarnings("deprecation")
     public static void handleCharmTooltip(StringBuilder builder, ItemStack itemStack)
     {
-        boolean woldsLayout = ModList.get().isLoaded(WOLDS_VAULTS_MOD_ID);
+        boolean woldsLayout = ModList.get().isLoaded(TooltipLines.WOLDS_VAULTS_MOD_ID);
 
         if (!woldsLayout)
         {
             int totalUses = CharmItem.getUses(itemStack);
             int used = CharmItem.getUsedVaults(itemStack).size();
             int remaining = Math.max(totalUses - used, 0);
-            VaultItemsHandler.appendGameLine(builder, new TextComponent("Uses: ").append(remaining + "/" + totalUses));
+            TooltipLines.appendGameLine(builder, new TextComponent("Uses: ").append(remaining + "/" + totalUses));
         }
 
         AttributeGearData data = AttributeGearData.read(itemStack);
@@ -1902,16 +1751,16 @@ public class VaultItemsHandler
                 ((CharmEffect.Config<?>) charmEffect.getCharmConfig().getConfig()).getAttribute().getReader();
             String effectText = Math.round(CharmItem.getValue(itemStack) * 100.0F) + "% " + percentage.getModifierName();
 
-            VaultItemsHandler.appendStyledLine(builder,
+            TooltipLines.appendStyledLine(builder,
                 effectText,
                 new TextComponent(effectText).withStyle(Style.EMPTY.withColor(percentage.getRgbColor())));
-            VaultItemsHandler.appendGameLine(builder, new TextComponent("Size: ").append(String.valueOf(10)));
+            TooltipLines.appendGameLine(builder, new TextComponent("Size: ").append(String.valueOf(10)));
             builder.append("\n");
         });
 
         if (!woldsLayout)
         {
-            VaultItemsHandler.appendGameLine(builder, VaultItemsHandler.curiosSlotLine("charm"));
+            TooltipLines.appendGameLine(builder, VaultItemsHandler.curiosSlotLine("charm"));
         }
     }
 
@@ -1931,8 +1780,8 @@ public class VaultItemsHandler
             ModConfigs.ABILITIES.getAbilityById(abilityId).ifPresent(ability ->
             {
                 builder.append("\n");
-                VaultItemsHandler.appendTextLine(builder, new TextComponent("Use to remove selected specialization"));
-                VaultItemsHandler.appendTextLine(builder, new TextComponent("of ability ").
+                TooltipLines.appendTextLine(builder, new TextComponent("Use to remove selected specialization"));
+                TooltipLines.appendTextLine(builder, new TextComponent("of ability ").
                     append(new TextComponent(ability.getName()).withStyle(ChatFormatting.GOLD)));
             });
         }
@@ -1950,7 +1799,7 @@ public class VaultItemsHandler
     {
         if (!(itemStack.getItem() instanceof ReforgeTagModificationFocus))
         {
-            VaultItemsHandler.appendItemGameLines(builder, itemStack);
+            TooltipLines.appendItemGameLines(builder, itemStack);
             return;
         }
 
@@ -1959,7 +1808,7 @@ public class VaultItemsHandler
             return;
         }
 
-        VaultItemsHandler.appendGameLine(builder,
+        TooltipLines.appendGameLine(builder,
             new TranslatableComponent("the_vault.gear_modification.information").withStyle(ChatFormatting.GRAY));
         VaultGearTagConfig.ModTagGroup group = ReforgeTagModificationFocus.getModifierTag(itemStack);
 
@@ -1967,12 +1816,12 @@ public class VaultItemsHandler
         {
             if (group.getAffixType() != null)
             {
-                VaultItemsHandler.appendGameLine(builder,
+                TooltipLines.appendGameLine(builder,
                     new TextComponent("Add a new " + group.getJoinedAffix() + ", guaranteeing ").withStyle(ChatFormatting.GOLD).
                         append(group.getDisplayComponent()));
             }
 
-            VaultItemsHandler.appendGameLine(builder,
+            TooltipLines.appendGameLine(builder,
                 new TextComponent("Hold Shift + ALT for more information").withStyle(ChatFormatting.GRAY));
         }
     }
@@ -1986,7 +1835,7 @@ public class VaultItemsHandler
      */
     public static void handleTitleScrollTooltip(StringBuilder builder, ItemStack itemStack)
     {
-        VaultItemsHandler.appendGameLine(builder, VaultItemsHandler.ownerLine(TitleScrollItem.getOwnerUUID(itemStack).
+        TooltipLines.appendGameLine(builder, VaultItemsHandler.ownerLine(TitleScrollItem.getOwnerUUID(itemStack).
             map(uuid -> TitleScrollItem.getOwnerName(itemStack).orElse("Unknown")).
             orElse(null)));
 
@@ -2010,20 +1859,20 @@ public class VaultItemsHandler
                 preview.append(new TextComponent("<Player>")).append(title);
             }
 
-            VaultItemsHandler.appendGameLine(builder, new TextComponent("Preview: ").append(preview));
+            TooltipLines.appendGameLine(builder, new TextComponent("Preview: ").append(preview));
         }
 
         if (color == null)
         {
             builder.append("\n");
-            VaultItemsHandler.appendTextLine(builder,
+            TooltipLines.appendTextLine(builder,
                 new TextComponent("Combine with a dye in an anvil").withStyle(ChatFormatting.DARK_GRAY));
-            VaultItemsHandler.appendTextLine(builder,
+            TooltipLines.appendTextLine(builder,
                 new TextComponent("to set the title color.").withStyle(ChatFormatting.DARK_GRAY));
         }
         else
         {
-            VaultItemsHandler.appendGameLine(builder, new TextComponent("Color: ").
+            TooltipLines.appendGameLine(builder, new TextComponent("Color: ").
                 append(new TextComponent(color).withStyle(Style.EMPTY.withColor(TextColor.parseColor(color)))));
         }
     }
@@ -2060,7 +1909,7 @@ public class VaultItemsHandler
         }
         else if (ModConfigs.isInitialized())
         {
-            VaultItemsHandler.appendTextLine(builder, new TextComponent("Turns into ").withStyle(ChatFormatting.GRAY).
+            TooltipLines.appendTextLine(builder, new TextComponent("Turns into ").withStyle(ChatFormatting.GRAY).
                 append(new TextComponent(String.valueOf(SoulFlameItem.getEmberValue(itemStack) * itemStack.getCount())).
                     withStyle(ChatFormatting.GOLD)).
                 append(new TextComponent(" Embers when carried").withStyle(ChatFormatting.GRAY)));
@@ -2070,10 +1919,10 @@ public class VaultItemsHandler
 
     private static void appendOwnedSoulFlameLines(StringBuilder builder, ItemStack itemStack)
     {
-        VaultItemsHandler.appendGameLine(builder, VaultItemsHandler.ownerLine(LegacyVaultItemApi.soulFlameOwnerUuid(itemStack).
+        TooltipLines.appendGameLine(builder, VaultItemsHandler.ownerLine(LegacyVaultItemApi.soulFlameOwnerUuid(itemStack).
             map(uuid -> LegacyVaultItemApi.soulFlameOwnerName(itemStack).orElse("Unknown")).
             orElse(null)));
-        VaultItemsHandler.appendGameLine(builder, new TextComponent("Stacks: ").
+        TooltipLines.appendGameLine(builder, new TextComponent("Stacks: ").
             append(new TextComponent(String.valueOf(SoulFlameItem.getStacks(itemStack))).withStyle(ChatFormatting.AQUA)));
 
         LegacyVaultItemApi.soulFlameModifiers(itemStack).ifPresent(modifiers ->
@@ -2083,13 +1932,13 @@ public class VaultItemsHandler
 
     public static void handleAntiqueTooltip(StringBuilder builder, ItemStack itemStack)
     {
-        VaultItemsHandler.appendItemGameLines(builder, itemStack);
+        TooltipLines.appendItemGameLines(builder, itemStack);
     }
 
 
     public static void handleJewelPouchTooltip(StringBuilder builder, ItemStack itemStack)
     {
-        VaultItemsHandler.appendItemGameLines(builder, itemStack);
+        TooltipLines.appendItemGameLines(builder, itemStack);
     }
 
 
@@ -2101,7 +1950,7 @@ public class VaultItemsHandler
      */
     public static void handleCoinPouchTooltip(StringBuilder builder, ItemStack itemStack)
     {
-        VaultItemsHandler.appendItemGameLines(builder, itemStack);
+        TooltipLines.appendItemGameLines(builder, itemStack);
     }
 
 
@@ -2120,15 +1969,15 @@ public class VaultItemsHandler
             String text = shardStack.isEmpty() ? "Empty" :
                 shardStack.getCount() + " Shard" + (shardStack.getCount() > 1 ? "s" : "");
 
-            VaultItemsHandler.appendGameLine(builder, new TextComponent(text).withStyle(ChatFormatting.GOLD));
+            TooltipLines.appendGameLine(builder, new TextComponent(text).withStyle(ChatFormatting.GOLD));
             return;
         }
 
         int shards = ItemShardPouch.getStoredShardCount(itemStack);
 
-        VaultItemsHandler.appendGameLine(builder,
+        TooltipLines.appendGameLine(builder,
             new TextComponent(shards + " Soul Shard" + (shards == 1 ? "" : "s")).withStyle(ChatFormatting.GOLD));
-        VaultItemsHandler.appendTextLine(builder,
+        TooltipLines.appendTextLine(builder,
             new TextComponent("Becomes a Vault Pouch in your inventory").withStyle(ChatFormatting.GRAY));
     }
 
@@ -2139,7 +1988,7 @@ public class VaultItemsHandler
 
         if (xpAmount > 0)
         {
-            VaultItemsHandler.appendGameLine(builder,
+            TooltipLines.appendGameLine(builder,
                 new TextComponent("Grants " + String.format("%,d", xpAmount) + " Vault XP").withStyle(ChatFormatting.GREEN));
         }
     }
@@ -2157,17 +2006,17 @@ public class VaultItemsHandler
         CompoundTag blockEntityTag = itemStack.getOrCreateTagElement("BlockEntityTag");
         String ownerName = blockEntityTag.getString("OwnerName");
 
-        VaultItemsHandler.appendGameLine(builder, new TextComponent("Awarded to: ").append(ownerName.isEmpty() ?
+        TooltipLines.appendGameLine(builder, new TextComponent("Awarded to: ").append(ownerName.isEmpty() ?
             new TextComponent("???").withStyle(ChatFormatting.GRAY) :
             new TextComponent(ownerName).withStyle(ChatFormatting.YELLOW)));
-        VaultItemsHandler.appendGameLine(builder, new TextComponent("Time: ").
-            append(new TextComponent(VaultItemsHandler.formatTimeString(blockEntityTag.getInt("Time"))).withStyle(ChatFormatting.GRAY)));
+        TooltipLines.appendGameLine(builder, new TextComponent("Time: ").
+            append(new TextComponent(TooltipLines.formatTimeString(blockEntityTag.getInt("Time"))).withStyle(ChatFormatting.GRAY)));
 
         VaultDifficulty difficulty = VaultDifficulty.byName(blockEntityTag.getString("Difficulty"));
 
         if (difficulty != null)
         {
-            VaultItemsHandler.appendGameLine(builder, new TextComponent("Difficulty: ").
+            TooltipLines.appendGameLine(builder, new TextComponent("Difficulty: ").
                 append(difficulty.getDisplayName().copy().withStyle(ChatFormatting.GRAY)));
         }
     }
@@ -2191,20 +2040,20 @@ public class VaultItemsHandler
         }
 
         int level = tag.contains("level") ? tag.getInt("level") : 1;
-        VaultItemsHandler.appendGameLine(builder, new TextComponent("Level: ").
-            append(new TextComponent(String.valueOf(level)).withStyle(Style.EMPTY.withColor(LEVEL_COLOUR))));
+        TooltipLines.appendGameLine(builder, new TextComponent("Level: ").
+            append(new TextComponent(String.valueOf(level)).withStyle(Style.EMPTY.withColor(TooltipLines.LEVEL_COLOUR))));
 
         int hearts = tag.contains("hearts") ? tag.getInt("hearts") : 1;
 
         if (hearts > 0)
         {
-            VaultItemsHandler.appendGameLine(builder, new TextComponent("Health: ").
+            TooltipLines.appendGameLine(builder, new TextComponent("Health: ").
                 append(new TextComponent(TooltipLimits.repeat("\u2764", hearts)).withStyle(ChatFormatting.RED)));
-            VaultItemsHandler.appendGameLine(builder, VaultItemsHandler.companionCooldownLine(tag));
+            TooltipLines.appendGameLine(builder, VaultItemsHandler.companionCooldownLine(tag));
         }
         else
         {
-            VaultItemsHandler.appendGameLine(builder, new TextComponent("Health: ").
+            TooltipLines.appendGameLine(builder, new TextComponent("Health: ").
                 append(new TextComponent("Retired").withStyle(ChatFormatting.GRAY)));
         }
 
@@ -2213,8 +2062,8 @@ public class VaultItemsHandler
         if (!seriesRaw.isEmpty())
         {
             String seriesDisplay = seriesRaw.substring(0, 1).toUpperCase() + seriesRaw.substring(1).toLowerCase();
-            VaultItemsHandler.appendGameLine(builder, new TextComponent("Series: ").
-                append(new TextComponent(seriesDisplay).withStyle(Style.EMPTY.withColor(LEVEL_COLOUR))));
+            TooltipLines.appendGameLine(builder, new TextComponent("Series: ").
+                append(new TextComponent(seriesDisplay).withStyle(Style.EMPTY.withColor(TooltipLines.LEVEL_COLOUR))));
         }
 
         builder.append("\n");
@@ -2227,7 +2076,7 @@ public class VaultItemsHandler
             {
                 VaultModifierRegistry.getOpt(modifierId).ifPresent(vaultModifier ->
                 {
-                    VaultItemsHandler.appendStyledLine(builder,
+                    TooltipLines.appendStyledLine(builder,
                         "**Temporal Modifier**",
                         new TextComponent("Temporal Modifier").withStyle(ChatFormatting.AQUA));
                     VaultItemsHandler.appendModifierLine(builder, vaultModifier, vaultModifier.getDisplayName(), 1);
@@ -2251,7 +2100,7 @@ public class VaultItemsHandler
                 VaultItemsHandler.countRelicModifiers(ancientRelicsTag.getCompound("0"), modifierCounts);
             }
 
-            VaultItemsHandler.appendStyledLine(builder,
+            TooltipLines.appendStyledLine(builder,
                 "**Relics**",
                 new TextComponent("Relics").withStyle(ChatFormatting.GREEN));
 
@@ -2309,7 +2158,7 @@ public class VaultItemsHandler
             return new TextComponent("Cooldown: ").append(new TextComponent("Ready!").withStyle(ChatFormatting.GREEN));
         }
 
-        String remaining = VaultItemsHandler.formatTimeString(cooldownSeconds * 20L);
+        String remaining = TooltipLines.formatTimeString(cooldownSeconds * 20L);
         return new TextComponent("Cooldown: ").append(new TextComponent(remaining).withStyle(ChatFormatting.RED));
     }
 
@@ -2335,7 +2184,7 @@ public class VaultItemsHandler
         }
 
         line.append(name);
-        VaultItemsHandler.appendStyledLine(builder, DOT + " " + line.getString().strip(), line);
+        TooltipLines.appendStyledLine(builder, TooltipLines.DOT + " " + line.getString().strip(), line);
     }
 
 
@@ -2372,7 +2221,7 @@ public class VaultItemsHandler
             boolean inverted = attributeTag.getBoolean("Inverted");
             String description = VaultItemsHandler.decodeAttributeFilterEntry(attributeTag);
 
-            builder.append(DOT).append(" ");
+            builder.append(TooltipLines.DOT).append(" ");
 
             if (inverted)
             {
@@ -2462,7 +2311,7 @@ public class VaultItemsHandler
 
     public static void handleKeyringTooltip(StringBuilder builder, ItemStack itemStack)
     {
-        VaultItemsHandler.appendItemGameLines(builder, itemStack);
+        TooltipLines.appendItemGameLines(builder, itemStack);
     }
 
 
@@ -2470,14 +2319,14 @@ public class VaultItemsHandler
     {
         Card card = CardItem.getCard(itemStack);
 
-        VaultItemsHandler.appendGameLine(builder, new TextComponent("Tier: ").
-            append(new TextComponent(String.valueOf(card.getTier())).withStyle(Style.EMPTY.withColor(LEVEL_COLOUR))));
+        TooltipLines.appendGameLine(builder, new TextComponent("Tier: ").
+            append(new TextComponent(String.valueOf(card.getTier())).withStyle(Style.EMPTY.withColor(TooltipLines.LEVEL_COLOUR))));
 
         List<CardEntry.Color> colors = new ArrayList<>(card.getColors());
 
         if (!colors.isEmpty())
         {
-            VaultItemsHandler.appendGameLine(builder, new TextComponent("Color: ").
+            TooltipLines.appendGameLine(builder, new TextComponent("Color: ").
                 append(VaultItemsHandler.joinedCardList(colors.stream().map(CardEntry.Color::getColoredText).toList())));
         }
 
@@ -2494,13 +2343,13 @@ public class VaultItemsHandler
 
         if (!types.isEmpty())
         {
-            VaultItemsHandler.appendGameLine(builder, new TextComponent("Type: ").
+            TooltipLines.appendGameLine(builder, new TextComponent("Type: ").
                 append(VaultItemsHandler.joinedCardList(VaultItemsHandler.cardGroupTexts(types))));
         }
 
         if (!groups.isEmpty())
         {
-            VaultItemsHandler.appendGameLine(builder, new TextComponent("Groups: ").
+            TooltipLines.appendGameLine(builder, new TextComponent("Groups: ").
                 append(VaultItemsHandler.joinedCardList(VaultItemsHandler.cardGroupTexts(groups))));
         }
 
@@ -2563,7 +2412,7 @@ public class VaultItemsHandler
 
     public static void handleModifierScrollTooltip(StringBuilder builder, ItemStack itemStack)
     {
-        VaultItemsHandler.appendItemGameLines(builder, itemStack);
+        TooltipLines.appendItemGameLines(builder, itemStack);
     }
 
 
@@ -2601,7 +2450,7 @@ public class VaultItemsHandler
                         String cardName = Optional.ofNullable(card.getFirstName()).
                             map(Component::getString).orElse("Unknown");
 
-                        builder.append(" ").append(DOT).append(" ").
+                        builder.append(" ").append(TooltipLines.DOT).append(" ").
                             append(cardName).
                             append(" (T").append(card.getTier()).append(")").
                             append("\n");
@@ -2625,7 +2474,7 @@ public class VaultItemsHandler
 
                     if (text != null)
                     {
-                        builder.append(" ").append(DOT).append(" ").
+                        builder.append(" ").append(TooltipLines.DOT).append(" ").
                             append(text.getString()).append("\n");
                     }
                 }
@@ -2673,7 +2522,7 @@ public class VaultItemsHandler
         if (!effects.isEmpty())
         {
             builder.append("**Modifiers:**\n");
-            effects.forEach(effect -> builder.append(" ").append(DOT).append(" ").append(effect).append("\n"));
+            effects.forEach(effect -> builder.append(" ").append(TooltipLines.DOT).append(" ").append(effect).append("\n"));
         }
     }
 
@@ -2723,7 +2572,7 @@ public class VaultItemsHandler
 
                 MutableComponent line = name.copy().
                     append(new TextComponent(" (").withStyle(ChatFormatting.GRAY).append(ranges).append(")"));
-                VaultItemsHandler.appendStyledLine(builder, line.getString(), line);
+                TooltipLines.appendStyledLine(builder, line.getString(), line);
             });
         }
         else
@@ -2731,7 +2580,7 @@ public class VaultItemsHandler
             List<Component> components = new ArrayList<>();
             property.addText(components, 0, TooltipFlag.Default.ADVANCED, 0f, tier);
 
-            components.forEach(component -> VaultItemsHandler.appendStyledLine(builder, component.getString(), component));
+            components.forEach(component -> TooltipLines.appendStyledLine(builder, component.getString(), component));
         }
     }
 
@@ -2933,7 +2782,7 @@ public class VaultItemsHandler
             return;
         }
 
-        VaultItemsHandler.appendGameLine(builder, header);
+        TooltipLines.appendGameLine(builder, header);
 
         for (VaultModifierStack modifierStack : group)
         {
@@ -2954,7 +2803,7 @@ public class VaultItemsHandler
                 line = new TextComponent("  ").append(name);
             }
 
-            VaultItemsHandler.appendStyledLine(builder, DOT + " " + line.getString().strip(), line);
+            TooltipLines.appendStyledLine(builder, TooltipLines.DOT + " " + line.getString().strip(), line);
         }
     }
 
@@ -2993,7 +2842,7 @@ public class VaultItemsHandler
 
                 builder.append("Divine Paradox").append("\n");
                 builder.append(" ").
-                    append(VaultItemsHandler.DOT).
+                    append(TooltipLines.DOT).
                     append(" ").
                     append("**Type:** ").
                     append(paradox.getType().getName()).
@@ -3006,14 +2855,14 @@ public class VaultItemsHandler
                     if (paradox.getType() == ParadoxObjective.Type.RUN)
                     {
                         builder.append(" ").
-                            append(VaultItemsHandler.DOT).
+                            append(TooltipLines.DOT).
                             append(" ").
                             append("**Cooldown:** ???").
                             append("\n");
                     }
 
                     builder.append(" ").
-                        append(VaultItemsHandler.DOT).
+                        append(TooltipLines.DOT).
                         append(" ").
                         append("**Player:** ???");
                 }
@@ -3024,15 +2873,15 @@ public class VaultItemsHandler
                     if (paradox.getType() == ParadoxObjective.Type.RUN)
                     {
                         builder.append(" ").
-                            append(VaultItemsHandler.DOT).
+                            append(TooltipLines.DOT).
                             append(" ").
                             append("**Cooldown:** ").
-                            append(ticksLeft < 0L ? "Ready" : VaultItemsHandler.formatTimeString((int)ticksLeft)).
+                            append(ticksLeft < 0L ? "Ready" : TooltipLines.formatTimeString((int)ticksLeft)).
                             append("\n");
                     }
 
                     builder.append(" ").
-                        append(VaultItemsHandler.DOT).
+                        append(TooltipLines.DOT).
                         append(" ").
                         append("**Player:** ").
                         append(paradoxTag.contains("player_name") ? "Unknown" : paradoxTag.getString("player_name"));
@@ -3048,7 +2897,7 @@ public class VaultItemsHandler
                 if (!ascensionTag.contains("player_uuid"))
                 {
                     builder.append(" ").
-                        append(VaultItemsHandler.DOT).
+                        append(TooltipLines.DOT).
                         append(" ").
                         append("**Player:** ???").
                         append("\n");
@@ -3056,7 +2905,7 @@ public class VaultItemsHandler
                 else
                 {
                     builder.append(" ").
-                        append(VaultItemsHandler.DOT).
+                        append(TooltipLines.DOT).
                         append(" ").
                         append("**Player:** ").
                         append(ascensionTag.contains("player_name") ? "Unknown" : ascensionTag.getString("player_name")).
@@ -3064,7 +2913,7 @@ public class VaultItemsHandler
                 }
 
                 builder.append(" ").
-                    append(VaultItemsHandler.DOT).
+                    append(TooltipLines.DOT).
                     append(" ").
                     append("**Stacks:** ").
                     append(ascensionTag.getInt("stack"));
@@ -3149,7 +2998,7 @@ public class VaultItemsHandler
                     String roomStr = count > 1 ? "Rooms" : "Room";
 
                     builder.append(" ").
-                        append(VaultItemsHandler.DOT).
+                        append(TooltipLines.DOT).
                         append(" ").
                         append(count).
                         append(" ").
@@ -3188,7 +3037,7 @@ public class VaultItemsHandler
                     String roomStr = hasUser && count == 1 ? "Room" : "Rooms";
 
                     builder.append(" ").
-                        append(VaultItemsHandler.DOT).
+                        append(TooltipLines.DOT).
                         append(" ").
                         append(hasUser ? "?" : count).
                         append(" ").
@@ -3222,9 +3071,9 @@ public class VaultItemsHandler
         {
             int min = vaultTime.getRoll().getMin();
             int max = vaultTime.getRoll().getMax();
-            String text = formatTimeString(min);
+            String text = TooltipLines.formatTimeString(min);
             if (min != max) {
-                text = text + " - " + formatTimeString(max);
+                text = text + " - " + TooltipLines.formatTimeString(max);
             }
 
             return "**Time:** " + text;
@@ -3267,7 +3116,7 @@ public class VaultItemsHandler
         {
             if (modifiers.hasClarity())
             {
-                VaultItemsHandler.appendGameLine(builder,
+                TooltipLines.appendGameLine(builder,
                     new TextComponent("Clarity").withStyle(Style.EMPTY.withColor(CLARITY_COLOUR)));
             }
 
@@ -3283,7 +3132,7 @@ public class VaultItemsHandler
             }
             else if (curseCount > 0)
             {
-                VaultItemsHandler.appendGameLine(builder,
+                TooltipLines.appendGameLine(builder,
                     new TextComponent("Cursed ").withStyle(curseStyle).append(TooltipLimits.repeat(CURSE, curseCount)));
             }
         }
@@ -3309,23 +3158,6 @@ public class VaultItemsHandler
 
 
     /**
-     * Time parser
-     * @param ticks how many ticks remaining
-     * @return remaining ticks parsed as string.
-     */
-    private static String formatTimeString(long ticks)
-    {
-        long seconds = ticks / 20L % 60L;
-        long minutes = ticks / 20L / 60L % 60L;
-        long hours = ticks / 20L / 60L / 60L;
-
-        return hours > 0L
-            ? String.format("%02d:%02d:%02d", hours, minutes, seconds)
-            : String.format("%02d:%02d", minutes, seconds);
-    }
-
-
-    /**
      * symbol for text fields.
      */
     private static final String EMPTY_CIRCLE = "\u25CB";
@@ -3336,13 +3168,6 @@ public class VaultItemsHandler
     private static final String FULL_CIRCLE = "\u25CF";
 
     private static final String SQUARE = "\u25A0";
-
-    /**
-     * The colours the game's gear tooltip gives these values.
-     */
-    private static final int LEVEL_COLOUR = 0xB0C0FA;
-
-    private static final int CRAFTER_COLOUR = 0xFFE400;
 
     private static final int SLOT_COLOUR = 0xE2E28A;
 
@@ -3382,18 +3207,16 @@ public class VaultItemsHandler
      */
     private static final Pattern ETCHING_EFFECT_PLACEHOLDER = Pattern.compile("%s([\\w$]+)/effect(?![\\w$/])");
 
-    private static final String WOLDS_VAULTS_MOD_ID = "woldsvaults";
-
     private static final String COMBINED_TRINKET_CLASS = "xyz.iwolfking.woldsvaults.items.CombinedTrinketItem";
 
     private static final String INFUSED_AUGMENT_CLASS = "xyz.iwolfking.woldsvaults.items.InfusedAugmentItem";
 
-    private static final Logger LOGGER = LogUtils.getLogger();
+    static final Logger LOGGER = LogUtils.getLogger();
 
     /**
      * Crystal part and item classes whose tooltip text failed on the server, so each is logged once.
      */
-    private static final Set<String> GAME_TEXT_FAILURES = ConcurrentHashMap.newKeySet();
+    static final Set<String> GAME_TEXT_FAILURES = ConcurrentHashMap.newKeySet();
 
     private static final int DURABILITY_COLOUR = 0xAAAAAA;
 
@@ -3406,11 +3229,6 @@ public class VaultItemsHandler
     private static final int CORRUPTED_COLOUR = 0x780004;
 
     private static final String CURSE = "\u2620";
-
-    /**
-     * Symbol for text fields.
-     */
-    private static final String DOT = "\u2022";
 
     /**
      * How the game's deck tooltip starts its sockets line.
