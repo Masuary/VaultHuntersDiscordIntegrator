@@ -3310,19 +3310,9 @@ public class VaultItemsHandler
 
     /**
      * Time parser
-     * @param remainingTicks how many ticks remaining
+     * @param ticks how many ticks remaining
      * @return remaining ticks parsed as string.
      */
-    private static String formatTimeString(int remainingTicks)
-    {
-        long seconds = remainingTicks / 20 % 60;
-        long minutes = remainingTicks / 20 / 60 % 60;
-        long hours = remainingTicks / 20 / 60 / 60;
-        return hours > 0L ? String.format("%02d:%02d:%02d", hours, minutes, seconds) :
-            String.format("%02d:%02d", minutes, seconds);
-    }
-
-
     private static String formatTimeString(long ticks)
     {
         long seconds = ticks / 20L % 60L;
