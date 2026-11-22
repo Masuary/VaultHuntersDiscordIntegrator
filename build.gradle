@@ -108,8 +108,17 @@ dependencies {
 
     // MasuChatLink is not on CurseMaven yet: -Pmasuchatlink_jar=<path> picks the jar. MasuChatLinkEventListener uses its
     // API classes directly, so the build needs it; at runtime the listener is only registered when the mod is present.
-    compileOnly files(providers.gradleProperty('masuchatlink_jar').getOrElse(
+    def masuChatLinkJar = files(providers.gradleProperty('masuchatlink_jar').getOrElse(
             '/mnt/data/Minecraft/Mods/MasuChatLink/build/libs/masuchatlink-1.3.0.jar'))
+    compileOnly masuChatLinkJar
+    testImplementation masuChatLinkJar
+
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.10.2'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher:1.10.2'
+}
+
+tasks.named('test', Test) {
+    useJUnitPlatform()
 }
 
 tasks.named('processResources', ProcessResources).configure {

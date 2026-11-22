@@ -2260,7 +2260,7 @@ public class VaultItemsHandler
         if (hearts > 0)
         {
             VaultItemsHandler.appendGameLine(builder, new TextComponent("Health: ").
-                append(new TextComponent("\u2764".repeat(hearts)).withStyle(ChatFormatting.RED)));
+                append(new TextComponent(TooltipLimits.repeat("\u2764", hearts)).withStyle(ChatFormatting.RED)));
             VaultItemsHandler.appendGameLine(builder, VaultItemsHandler.companionCooldownLine(tag));
         }
         else
@@ -2639,7 +2639,7 @@ public class VaultItemsHandler
     @SuppressWarnings({"rawtypes", "unchecked"})
     public static void handleCardDeckTooltip(StringBuilder builder, ItemStack itemStack, ServerPlayer linkingPlayer)
     {
-        CardDeckItem.getCardDeck(itemStack).ifPresent(deck ->
+        CardDeckItem.getCardDeck(itemStack).filter(DeckTooltips::isDescribable).ifPresent(deck ->
         {
             int greedTier = DeckTooltips.greedTierOf(linkingPlayer);
             Map<CardPos, Card> cards = deck.getCards();
@@ -2973,7 +2973,7 @@ public class VaultItemsHandler
      */
     private static String createDots(int amount, String symbol)
     {
-        return (symbol + " ").repeat(Math.max(0, amount));
+        return TooltipLimits.repeat(symbol + " ", amount);
     }
 
 
@@ -3350,7 +3350,7 @@ public class VaultItemsHandler
             else if (curseCount > 0)
             {
                 VaultItemsHandler.appendGameLine(builder,
-                    new TextComponent("Cursed ").withStyle(curseStyle).append(CURSE.repeat(curseCount)));
+                    new TextComponent("Cursed ").withStyle(curseStyle).append(TooltipLimits.repeat(CURSE, curseCount)));
             }
         }
 

@@ -81,7 +81,7 @@ public final class DeckPicture
             return Optional.empty();
         }
 
-        return CardDeckItem.getCardDeck(itemStack).map(deck ->
+        return CardDeckItem.getCardDeck(itemStack).filter(DeckTooltips::isDescribable).map(deck ->
         {
             List<List<TooltipSegment>> lines = DeckPicture.statsLines(deck, DeckTooltips.greedTierOf(linkingPlayer));
 

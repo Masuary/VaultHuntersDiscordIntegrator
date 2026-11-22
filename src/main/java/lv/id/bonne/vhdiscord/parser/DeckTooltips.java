@@ -64,6 +64,11 @@ public final class DeckTooltips
     public static List<Component> deckLines(CardDeck deck, int greedTier)
     {
         List<Component> lines = new ArrayList<>();
+
+        if (!DeckTooltips.isDescribable(deck))
+        {
+            return lines;
+        }
         Integer previousGreedTier = GREED_TIER_OF_DECK_TEXT.get();
         GREED_TIER_OF_DECK_TEXT.set(greedTier);
 
@@ -77,6 +82,19 @@ public final class DeckTooltips
         }
 
         return lines;
+    }
+
+
+    /**
+     * Whether a deck's text and picture may be built: its socket and slot counts come from the linked item's NBT and
+     * the game's own deck text repeats a mark per socket.
+     *
+     * @param deck the deck.
+     * @return true for any deck the game makes.
+     */
+    public static boolean isDescribable(CardDeck deck)
+    {
+        return TooltipLimits.isDescribableDeck(deck.getSocketCount(), deck.getSlots().size());
     }
 
 

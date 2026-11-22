@@ -20,6 +20,7 @@ import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import com.mojang.logging.LogUtils;
 import iskallia.vault.item.modification.ReforgeTagModificationFocus;
 import lv.id.bonne.vhdiscord.parser.TooltipColorHints;
+import lv.id.bonne.vhdiscord.parser.TooltipLimits;
 import lv.id.bonne.vhdiscord.parser.VaultItemsHandler;
 import net.minecraft.commands.arguments.NbtTagArgument;
 import net.minecraft.nbt.CompoundTag;
@@ -71,6 +72,11 @@ public class MasuChatLinkEventListener
      * Item ids whose picture failed, so each is logged once.
      */
     private static final Set<String> FAILED_ITEMS = ConcurrentHashMap.newKeySet();
+
+    /**
+     * Item ids whose description was over the length limit, so each is logged once.
+     */
+    private static final Set<String> OVERSIZED_ITEMS = ConcurrentHashMap.newKeySet();
 
 
     @SubscribeEvent
@@ -145,14 +151,14 @@ public class MasuChatLinkEventListener
             List<TooltipSlot> slots = this.coinSlotsOf(itemStack, itemTag);
 
             TooltipColorHints.start();
-            String description;
+            String generated;
             String clientEventLines = "";
 
             try
             {
-                description = VaultItemsHandler.generateVaultHuntersItemTooltips(itemJson, itemStack, itemTag, event.getPlayer());
+                generated = VaultItemsHandler.generateVaultHuntersItemTooltips(itemJson, itemStack, itemTag, event.getPlayer());
 
-                if (description == null || description.isBlank())
+                if (generated == null || generated.isBlank())
                 {
                     clientEventLines = VaultItemsHandler.clientEventLines(itemStack);
                 }
@@ -161,6 +167,8 @@ public class MasuChatLinkEventListener
             {
                 this.colourHints = TooltipColorHints.take();
             }
+
+            String description = MasuChatLinkEventListener.attachableOrNull(itemJson.get("id").getAsString(), generated);
 
             if (description == null || description.isBlank())
             {
@@ -204,6 +212,30 @@ public class MasuChatLinkEventListener
                 LOGGER.warn("Could not build the tooltip picture of {}; it is posted without one", id, failure);
             }
         }
+    }
+
+
+    /**
+     * The description when it is short enough to attach; an oversized one (only a forged item makes one) is logged once
+     * per item id and dropped.
+     *
+     * @param itemId the item id.
+     * @param description the generated description, or null.
+     * @return the description, or null.
+     */
+    private static String attachableOrNull(String itemId, String description)
+    {
+        if (description == null || TooltipLimits.isAttachableDescription(description))
+        {
+            return description;
+        }
+
+        if (OVERSIZED_ITEMS.add(itemId))
+        {
+            LOGGER.warn("The description of a linked {} is {} characters long; it is posted without it", itemId, description.length());
+        }
+
+        return null;
     }
 
 
