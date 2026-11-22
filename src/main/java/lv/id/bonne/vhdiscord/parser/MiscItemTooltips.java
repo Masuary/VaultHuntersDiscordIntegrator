@@ -519,12 +519,13 @@ final class MiscItemTooltips
      * @param builder Embed Builder.
      * @param itemStack the charm.
      * @param linkingPlayer the player who linked it, or null when unknown (reputation 0).
+     * @return true when the lines were written, false when the game's own text describes the charm.
      */
-    static void handleGreedyCharmTooltip(StringBuilder builder, ItemStack itemStack, ServerPlayer linkingPlayer)
+    static boolean handleGreedyCharmTooltip(StringBuilder builder, ItemStack itemStack, ServerPlayer linkingPlayer)
     {
         if (ModConfigs.GREEDY_CHARM == null || !GreedyCharmItem.isRolled(itemStack))
         {
-            return;
+            return false;
         }
 
         int reputation = MiscItemTooltips.totalReputation(linkingPlayer);
@@ -545,6 +546,8 @@ final class MiscItemTooltips
         {
             TooltipLines.appendGameLine(builder, VaultCharmItem.usesLine(itemStack, false));
         }
+
+        return true;
     }
 
 
@@ -580,19 +583,20 @@ final class MiscItemTooltips
      * @param builder Embed Builder.
      * @param itemStack the shard.
      * @param linkingPlayer the player who linked it, or null when unknown (taken as outside a vault).
+     * @return true when the lines were written, false for a shard this does not describe.
      */
-    static void handleTemporalShardTooltip(StringBuilder builder, ItemStack itemStack, ServerPlayer linkingPlayer)
+    static boolean handleTemporalShardTooltip(StringBuilder builder, ItemStack itemStack, ServerPlayer linkingPlayer)
     {
         if (!LegacyVaultItemApi.hasTemporalModifierLock() || !TemporalShardItem.isIdentified(itemStack))
         {
-            return;
+            return false;
         }
 
         VaultModifier<?> modifier = TemporalShardItem.getVaultModifier(itemStack);
 
         if (modifier == null)
         {
-            return;
+            return false;
         }
 
         Style modifierStyle = Style.EMPTY.withColor(modifier.getDisplayTextColor());
@@ -615,6 +619,8 @@ final class MiscItemTooltips
         {
             TooltipLines.appendTextLine(builder, new TextComponent("Consume this relic to gain its effects").withStyle(ChatFormatting.GRAY));
         }
+
+        return true;
     }
 
 

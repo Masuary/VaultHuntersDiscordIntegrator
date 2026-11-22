@@ -432,9 +432,19 @@ public class VaultItemsHandler
                     case "the_vault:greedy_meal" ->
                         MiscItemTooltips.handleGreedyMealTooltip(builder, itemStack, linkingPlayer);
                     case "the_vault:greedy_charm" ->
-                        MiscItemTooltips.handleGreedyCharmTooltip(builder, itemStack, linkingPlayer);
+                    {
+                        if (!MiscItemTooltips.handleGreedyCharmTooltip(builder, itemStack, linkingPlayer))
+                        {
+                            return null;
+                        }
+                    }
                     case "the_vault:temporal_shard" ->
-                        MiscItemTooltips.handleTemporalShardTooltip(builder, itemStack, linkingPlayer);
+                    {
+                        if (!MiscItemTooltips.handleTemporalShardTooltip(builder, itemStack, linkingPlayer))
+                        {
+                            return null;
+                        }
+                    }
                     case "the_vault:herald_trophy" ->
                         CompanionTooltips.handleHeraldTrophyTooltip(builder, itemStack);
                     case "the_vault:companion" ->
