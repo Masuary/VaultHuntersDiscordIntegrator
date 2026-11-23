@@ -7,12 +7,16 @@
 package lv.id.bonne.vhdiscord.parser;
 
 
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.stream.Stream;
 
 import iskallia.vault.config.PotionConfig;
+import iskallia.vault.core.vault.VaultUtils;
 import iskallia.vault.init.ModConfigs;
 import iskallia.vault.item.bottle.BottleItem;
 import iskallia.vault.item.bottle.DrinkMode;
@@ -28,6 +32,7 @@ import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.network.chat.Style;
 import net.minecraft.network.chat.TextComponent;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 
 
@@ -44,6 +49,12 @@ final class BottleTooltips
     private static final int POTION_VALUE_COLOUR = 0xFFFFFF;
 
     private static final int POTION_FILL_COLOUR = 0xF670DB;
+
+    /**
+     * {@code ActivePotion.of(Player)}, the potion that counts when a player carries several (Vault Hunters 7226 and
+     * later); this mod compiles against 7209, which has no active potion.
+     */
+    private static final Optional<Method> ACTIVE_POTION_OF = BottleTooltips.findActivePotionOf();
 
 
     private BottleTooltips()
@@ -137,8 +148,13 @@ final class BottleTooltips
     private static boolean isSlotted(ItemStack itemStack, ServerPlayer player)
     {
         ItemStack slotted = BottleItem.getSlotted(player);
-        return !slotted.isEmpty() && slotted.is(itemStack.getItem()) &&
-            Objects.equals(BottleTooltips.tagOrNull(slotted), BottleTooltips.tagOrNull(itemStack));
+        return !slotted.isEmpty() && BottleTooltips.isSameBottle(slotted, itemStack);
+    }
+
+
+    private static boolean isSameBottle(ItemStack carried, ItemStack linked)
+    {
+        return carried.is(linked.getItem()) && Objects.equals(BottleTooltips.tagOrNull(carried), BottleTooltips.tagOrNull(linked));
     }
 
 
@@ -150,8 +166,9 @@ final class BottleTooltips
 
 
     /**
-     * The bottle lines of Vault Hunters 7209 for one player: charges, drink mode, healing, the slotted and infused
-     * effects, how it fills and, in a vault, how far the next charge is.
+     * The bottle lines of Vault Hunters 7209 and later for one player: charges, drink mode, healing, the slotted and
+     * infused effects, how it fills, since 7226 that it is kept on death and which carried potion is the active one,
+     * how it is used and, in a vault, how far the next charge is.
      *
      * @param builder Embed Builder.
      * @param itemStack the bottle.
@@ -174,9 +191,7 @@ final class BottleTooltips
         builder.append("\n");
         TooltipLines.appendTextLine(builder,
             new TextComponent("Fills from kills and chests in a vault").withStyle(ChatFormatting.GRAY));
-        TooltipLines.appendTextLine(builder,
-            new TextComponent(BottleTooltips.isSlotted(itemStack, player) ? "Right-click to change the Drink Mode" : "Right-click to equip it").
-                withStyle(ChatFormatting.DARK_GRAY));
+        BottleTooltips.appendUseLines(builder, itemStack, player);
 
         if (BottleItem.getBoundVault(itemStack).isPresent())
         {
@@ -185,6 +200,114 @@ final class BottleTooltips
 
             TooltipLines.appendTextLine(builder, new TextComponent((full ? "Full" : "Next charge") + "  ").withStyle(ChatFormatting.GRAY).
                 append(new TextComponent(fill).withStyle(Style.EMPTY.withColor(POTION_FILL_COLOUR))));
+        }
+    }
+
+
+    /**
+     * How the potion is used. On 7226 and later: kept on death, the active or spare line when the player carries more
+     * than one, and drinking from the hand; on 7209 a potion outside the potion slot can only be equipped.
+     *
+     * @param builder Embed Builder.
+     * @param itemStack the linked potion.
+     * @param player the player who linked it.
+     */
+    private static void appendUseLines(StringBuilder builder, ItemStack itemStack, ServerPlayer player)
+    {
+        boolean slotted = BottleTooltips.isSlotted(itemStack, player);
+
+        if (ACTIVE_POTION_OF.isEmpty())
+        {
+            TooltipLines.appendTextLine(builder,
+                new TextComponent(slotted ? "Right-click to change the Drink Mode" : "Right-click to equip it").withStyle(ChatFormatting.DARK_GRAY));
+            return;
+        }
+
+        TooltipLines.appendTextLine(builder, new TextComponent("Kept when you die").withStyle(ChatFormatting.GRAY));
+        BottleTooltips.activeLine(itemStack, player).ifPresent(line -> TooltipLines.appendTextLine(builder, line));
+
+        if (slotted)
+        {
+            TooltipLines.appendTextLine(builder, new TextComponent("Right-click to change the Drink Mode").withStyle(ChatFormatting.DARK_GRAY));
+        }
+        else
+        {
+            TooltipLines.appendTextLine(builder,
+                new TextComponent("Right-click to drink, Sneak to change the Drink Mode").withStyle(ChatFormatting.DARK_GRAY));
+            TooltipLines.appendTextLine(builder,
+                new TextComponent("Right-click it in your inventory to equip it").withStyle(ChatFormatting.DARK_GRAY));
+        }
+    }
+
+
+    /**
+     * The game's active or spare line, shown only when the player carries more than one potion. The game compares the
+     * very stack; a link carries a copy, so the carried potion with the same item and tag stands for it.
+     *
+     * @param itemStack the linked potion.
+     * @param player the player who linked it.
+     * @return the line, or empty when the player carries one potion or none like the linked one.
+     */
+    private static Optional<Component> activeLine(ItemStack itemStack, ServerPlayer player)
+    {
+        List<ItemStack> carried = BottleTooltips.carriedPotions(player).toList();
+        Optional<ItemStack> linked = carried.stream().filter(potion -> BottleTooltips.isSameBottle(potion, itemStack)).findFirst();
+
+        if (carried.size() < 2 || linked.isEmpty())
+        {
+            return Optional.empty();
+        }
+
+        if (linked.get() == BottleTooltips.activePotion(player))
+        {
+            return Optional.of(new TextComponent("Active potion").withStyle(ChatFormatting.GREEN));
+        }
+
+        String spare = VaultUtils.isVaultLevel(player.getLevel()) ?
+            "Spare: only the potion you entered with works" : "Spare: only your active potion is used";
+        return Optional.of(new TextComponent(spare).withStyle(ChatFormatting.RED));
+    }
+
+
+    /**
+     * The potions the game counts as carried, in its order: the potion slot, the offhand, then the main inventory.
+     */
+    private static Stream<ItemStack> carriedPotions(ServerPlayer player)
+    {
+        return Stream.concat(Stream.of(BottleItem.getSlotted(player), player.getOffhandItem()), player.getInventory().items.stream()).
+            filter(BottleItem::isPotion);
+    }
+
+
+    private static ItemStack activePotion(ServerPlayer player)
+    {
+        Method activePotionOf = ACTIVE_POTION_OF.orElseThrow(() -> new IllegalStateException("ActivePotion.of(Player) is missing"));
+
+        try
+        {
+            return (ItemStack) activePotionOf.invoke(null, player);
+        }
+        catch (IllegalAccessException failure)
+        {
+            throw new IllegalStateException("Cannot call " + activePotionOf, failure);
+        }
+        catch (InvocationTargetException failure)
+        {
+            throw new IllegalStateException(activePotionOf + " failed", failure.getCause());
+        }
+    }
+
+
+    private static Optional<Method> findActivePotionOf()
+    {
+        try
+        {
+            Class<?> activePotion = Class.forName("iskallia.vault.item.bottle.ActivePotion", false, BottleTooltips.class.getClassLoader());
+            return Optional.of(activePotion.getMethod("of", Player.class));
+        }
+        catch (ClassNotFoundException | NoSuchMethodException absent)
+        {
+            return Optional.empty();
         }
     }
 

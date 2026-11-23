@@ -1,5 +1,12 @@
 # Vault Hunters Discord Integrator (fork, branch masuchatlink): plan
 
+## VH Remastered 4.0.1 (the_vault 7226) potion tooltip: Skyvault Update 4 phase R2, 2026-11-23
+
+Sir chose to update the potion link tooltip now (project `PLAN.md` "Phase R2", `/mnt/data/Projects/skyvault-update4-2026-11-20/`). Version stays 1.14.0 (not shipped); still compiles against 7209.
+- [x] `BottleTooltips.appendUseLines`: on 7226 and later (`ActivePotion.of(Player)` found by reflection) "Kept when you die", the game's "Active potion" / "Spare: ..." line when the linking player carries more than one potion (the carried stack with the same item and tag stands for the linked copy), and "Right-click to drink, Sneak to change the Drink Mode" + "Right-click it in your inventory to equip it" for a potion outside the slot; 7209 keeps its two lines; Wold's Vaults keeps the typed-bottle path.
+- [x] `gradlew build` clean; `jar-link-check` against 7226 reports the same JDK/Forge-inherited members as against 7209.
+- [ ] 4.0.1 testnet: link a slotted potion, a second carried potion (Spare line) and one in the hand; text matches the linking player's own tooltip.
+
 ## 1.14.0: Vault Hunters Remastered 7209 (Skyvault Update 4) - Done (code), in-game tests pending
 
 Started and code-complete 2026-11-20 (commit 97f1a28). Source: `/mnt/data/Projects/skyvault-update4-2026-11-20/2-jar-diff/reports/our-mods-impact.md`, section `vhdiscord-1.13.2.jar`; network plan `/mnt/data/Projects/skyvault-update4-2026-11-20/PLAN.md` (Phase A step 4). Check outputs: `/mnt/data/AI/work/vhdiscord-7209-port-2026-11-20/`.
