@@ -12,6 +12,7 @@ import java.lang.reflect.Method;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.Stream;
 
 import iskallia.vault.core.card.CardDeck;
 import iskallia.vault.core.vault.Vault;
@@ -25,13 +26,14 @@ import iskallia.vault.item.bottle.BottleItem;
 import iskallia.vault.item.crystal.modifiers.CrystalModifiers;
 import iskallia.vault.item.gear.VaultCharmItem;
 import net.minecraft.network.chat.Component;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 
 
 /**
- * The item API Vault Hunters had before Remastered 7209 (Skyvault Update 4) and Wold's Vaults (Vault Hunters 3.21) still
- * runs. This mod compiles against 7209, so those members are reached by reflection, and only where the running game has
- * them.
+ * The item API that differs from Vault Hunters Remastered 7209, which this mod compiles against: the API before 7209 that
+ * Wold's Vaults (Vault Hunters 3.21) still runs, and the API added since (7226, Skyvault Update 4 on pack 4.0.1). Those
+ * members are reached by reflection, and only where the running game has them.
  */
 final class LegacyVaultItemApi
 {
@@ -64,6 +66,8 @@ final class LegacyVaultItemApi
 
     private static final Optional<Method> GREEDY_MEAL_XP_RANGE =
         LegacyVaultItemApi.findMethod("iskallia.vault.config.greed.GreedBoxConfig", "getGreedyMealVaultXpRange");
+
+    private static final Optional<Class<?>> ACTIVE_POTION = LegacyVaultItemApi.findClass("iskallia.vault.item.bottle.ActivePotion");
 
 
     private LegacyVaultItemApi()
@@ -262,16 +266,66 @@ final class LegacyVaultItemApi
     }
 
 
-    private static Optional<Method> findMethod(String ownerName, String name, Class<?>... parameterTypes)
+    /**
+     * Whether one carried potion is the active one and the others are spares (Vault Hunters 7226 and later).
+     *
+     * @return true on 7226 and later.
+     */
+    static boolean hasActivePotion()
+    {
+        return ACTIVE_POTION.isPresent();
+    }
+
+
+    /**
+     * The game's {@code ActivePotion.of(Player)}: the potion that counts for the player.
+     *
+     * @param player the player.
+     * @return the very carried stack, or the empty stack.
+     */
+    static ItemStack activePotion(Player player)
+    {
+        return (ItemStack) LegacyVaultItemApi.invoke(LegacyVaultItemApi.activePotionMethod("of"), null, player);
+    }
+
+
+    /**
+     * The game's {@code ActivePotion.carried(Player)}: the potions the player carries, in the game's order.
+     *
+     * @param player the player.
+     * @return the very carried stacks.
+     */
+    static List<ItemStack> carriedPotions(Player player)
+    {
+        Stream<?> carried = (Stream<?>) LegacyVaultItemApi.invoke(LegacyVaultItemApi.activePotionMethod("carried"), null, player);
+        return carried.map(ItemStack.class::cast).toList();
+    }
+
+
+    private static Method activePotionMethod(String name)
+    {
+        Class<?> activePotion = ACTIVE_POTION.orElseThrow(() -> new IllegalStateException("This Vault Hunters build has no ActivePotion"));
+        return LegacyVaultItemApi.findMethod(activePotion, name, Player.class).
+            orElseThrow(() -> new IllegalStateException(activePotion.getName() + "." + name + "(Player) is missing"));
+    }
+
+
+    private static Optional<Class<?>> findClass(String name)
     {
         try
         {
-            return LegacyVaultItemApi.findMethod(Class.forName(ownerName, false, LegacyVaultItemApi.class.getClassLoader()), name, parameterTypes);
+            return Optional.of(Class.forName(name, false, LegacyVaultItemApi.class.getClassLoader()));
         }
         catch (ClassNotFoundException absent)
         {
             return Optional.empty();
         }
+    }
+
+
+    private static Optional<Method> findMethod(String ownerName, String name, Class<?>... parameterTypes)
+    {
+        return LegacyVaultItemApi.findClass(ownerName).flatMap(owner -> LegacyVaultItemApi.findMethod(owner, name, parameterTypes));
     }
 
 
