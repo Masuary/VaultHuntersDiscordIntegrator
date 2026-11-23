@@ -14,11 +14,11 @@ Started and code-complete 2026-11-20 (commit 97f1a28). Source: `/mnt/data/Projec
 - [x] Checks: `gradlew build` clean (no compiler warnings, no tests in this repo); `jar-link-check` against 7209: only members inherited from JDK/Forge or resolved through VH supertypes, all confirmed with javap; against the Wolds 6884 jar: only the 7209 paths behind `LegacyVaultItemApi`; client-only check: only `DeckModifier.addText`, which `MixinDeckModifier` restores (as before).
 
 ### Phase C in-game link tests (VH-Remastered testnet on 7209, MasuChatLink relay, check Discord text and the in-game picture)
-- [ ] Potion: link a vault potion with slotted effects (and one infused); charges, drink mode, heals and effect lines match the linking player's own tooltip. Also a potion linked inside a vault (fill line).
+- [x] (review 12 TestA pass 2026-11-23) Potion: link a vault potion with slotted effects (and one infused); charges, drink mode, heals and effect lines match the linking player's own tooltip. Also a potion linked inside a vault (fill line).
 - [ ] Soul flame: ember count matches the in-game tooltip.
 - [ ] Shard pouch: soul shard count and the vault pouch line.
-- [ ] Socketed deck: attributes match the linking player's in-game deck tooltip at their greed tier (test with a player above greed tier 0), sockets line and core modifier lines present, no `Screen`/client class errors in the server log.
-- [ ] Wold's Vaults: one linked potion, soul flame, shard pouch and deck on the Wolds HUB test copy (`/mnt/data/AI/work/masuchatlink-crystal-tooltip-2026-11-19/run-probe.sh`), to prove the reflection paths and that `VaultItemsHandler` links on VH 3.21.6.
+- [x] (review 12 TestA pass 2026-11-23) Socketed deck: attributes match the linking player's in-game deck tooltip at their greed tier (test with a player above greed tier 0), sockets line and core modifier lines present, no `Screen`/client class errors in the server log.
+- [x] (review 12 golden probe on Wold's Vaults 0.34.2, 2,355 real items) Wold's Vaults: one linked potion, soul flame, shard pouch and deck on the Wolds HUB test copy (`/mnt/data/AI/work/masuchatlink-crystal-tooltip-2026-11-19/run-probe.sh`), to prove the reflection paths and that `VaultItemsHandler` links on VH 3.21.6.
 
 ## Phase R review 12 (Skyvault Update 4): decided by sir 2026-11-22
 
@@ -32,7 +32,7 @@ Findings and the full answers: `/mnt/data/Projects/skyvault-update4-2026-11-20/9
 - [x] B2 god charm 7209 layout for the linking player (Wolds keeps the old one); B3 Vault Pouch from `getContainedStacks` with all eight contents, owner must be the linker; B4 charm slot, etching, greedy meal, potion lines aligned with 7209; B5 warn-once logging.
 - [x] F2 handlers for the new 7209 items (stash, bounty crate, looks and unlock items); F3 sigil tiers for the linker's vault level; F4 potion title = tier name, slotted-bottle line, heals drawn as hearts.
 - [x] VHArmory: slot icons soul dust, soul shard, ember and the heart sprites (VHArmory master cf6c6c6; push + deploy only with sir's go, before this jar goes live).
-- [ ] Independent review; testnet + CMA link pass with the temporary Redis on TestA.
+- [x] Independent review (Opus, 0C 0H 0M 4L, fixed 856a8b2); testnet + CMA link pass with the temporary Redis on TestA, all PASS, one fix (41d010f): `/mnt/data/AI/work/vhdiscord-r12-impl-2026-11-22/qa/testnet-results.md`. Also done: identified god charm names no longer throw on a 7209 server (f368da1, sir 2026-11-22). Open: VHArmory deploy (needs a fresh panel key) before this jar goes live.
 
 ### Left open
 - dcintegration/sdlink only (not loaded on our servers): `MixinAchievementCompleteTask`'s `PlayerList.broadcastMessage` call is gone from `AchievementCompleteTask.onConsume` in 7209 and the skill altar share moved to `SkillAltarContainer.share`; those Discord announcements do not fire on 7209.
