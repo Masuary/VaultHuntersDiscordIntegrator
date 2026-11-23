@@ -9,6 +9,7 @@ package lv.id.bonne.vhdiscord.parser;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 
 import iskallia.vault.config.PotionConfig;
@@ -21,6 +22,7 @@ import iskallia.vault.item.bottle.PotionRolls;
 import iskallia.vault.item.bottle.PotionTiers;
 import iskallia.vault.util.PlayerRecoveryHelper;
 import net.minecraft.ChatFormatting;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.network.chat.Style;
@@ -126,7 +128,7 @@ final class BottleTooltips
 
     /**
      * Whether the linked potion is the one in the player's potion slot; the game compares the very stack, a link carries
-     * a copy, so the item and its tag are compared.
+     * a copy, so the item and its tag are compared (a missing tag and an empty one, which the parsed link gets, are equal).
      *
      * @param itemStack the linked potion.
      * @param player the player who linked it.
@@ -135,7 +137,15 @@ final class BottleTooltips
     private static boolean isSlotted(ItemStack itemStack, ServerPlayer player)
     {
         ItemStack slotted = BottleItem.getSlotted(player);
-        return !slotted.isEmpty() && ItemStack.isSameItemSameTags(slotted, itemStack);
+        return !slotted.isEmpty() && slotted.is(itemStack.getItem()) &&
+            Objects.equals(BottleTooltips.tagOrNull(slotted), BottleTooltips.tagOrNull(itemStack));
+    }
+
+
+    private static CompoundTag tagOrNull(ItemStack itemStack)
+    {
+        CompoundTag tag = itemStack.getTag();
+        return tag == null || tag.isEmpty() ? null : tag;
     }
 
 
